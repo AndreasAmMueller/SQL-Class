@@ -19,7 +19,7 @@
 
 class SQL {
 	// MySQL
-	private $host, $port, $user, $database;
+	private $host, $port, $user, $database, $encoding;
 	// SQLite
 	private $file;
 	// Both
@@ -39,6 +39,7 @@ class SQL {
 		$self->setPassword($password);
 		$self->setDatabase($database);
 		$self->setPort($port);
+		$self->setEncoding('utf8');
 		return $self;
 	}
 
@@ -94,6 +95,13 @@ class SQL {
 	public function getPort() {
 		return $this->port;
 	}
+	
+	public function setEncoding($enc) {
+		$this->encoding = $enc;
+	}
+	public function getEncoding() {
+		return $this->encoding;
+	}
 
 	public function setFile($file) {
 		is_writable(dirname($file)) or throw new Exception('<b>Error:</b> SQLite file directory not writable');
@@ -131,6 +139,7 @@ class SQL {
 			return false;
 		}
 		$this->con = $c;
+		$this->query("SET character_set_results = '".$this->encoding."', character_set_client = '".$this->encoding."', character_set_connection = '".$this->encoding."', character_set_database = '".$this->encoding."', character_set_server = '".$this->encoding."'");
 		return true;
 	}
 
