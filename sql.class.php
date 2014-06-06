@@ -4,7 +4,7 @@
  * sql.class.php
  *
  * @author Andreas Mueller <webmaster@am-wd.de>
- * @version 1.0-20140417
+ * @version 1.0-20140606
  *
  * @description
  * This class tries to provide (full) support for
