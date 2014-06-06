@@ -32,7 +32,9 @@ class SQL {
 
 	// static function to create mysql-instance
 	public static function MySQL($user, $password, $database, $host = 'localhost', $port = 3306) {
-		class_exists('mysqli') or throw new Exception('<b>Error:</b> MySQLi Class not installed! Details <a href="http://php.net/manual/de/book.mysqli.php">here</a>');
+		if (!class_exists('mysqli'))
+				throw new Exception('<b>Error:</b> MySQLi Class not installed! Details <a href="http://php.net/manual/de/book.mysqli.php">here</a>');
+
 		$self = new self('mysql');
 		$self->setHost($host);
 		$self->setUser($user);
@@ -40,23 +42,25 @@ class SQL {
 		$self->setDatabase($database);
 		$self->setPort($port);
 		$self->setEncoding('utf8');
+
 		return $self;
 	}
 
 	// static function to create sqlite-instance
 	public static function SQLite($file, $password = '') {
-		class_exists('SQLite3') or throw new Exception('<b>Error:</b> SQLite3 Class not installed! Details <a href="http://php.net/manual/de/book.sqlite3.php">here</a>');
+		if (!class_exists('SQLite3'))
+				throw new Exception('<b>Error:</b> SQLite3 Class not installed! Details <a href="http://php.net/manual/de/book.sqlite3.php">here</a>');
+
 		$self = new self('sqlite');
 		$self->setFile($file);
 		$self->setPassword($password);
+
 		return $self;
 	}
 
 	// destructor
 	public function __destruct() {
-		if ($con != null || $con != false) {
-			$this->close();
-		}
+		$this->close();
 	}
 
 	/* --- GETter and SETer ---
@@ -95,7 +99,7 @@ class SQL {
 	public function getPort() {
 		return $this->port;
 	}
-	
+
 	public function setEncoding($enc) {
 		$this->encoding = $enc;
 	}
@@ -104,7 +108,8 @@ class SQL {
 	}
 
 	public function setFile($file) {
-		is_writable(dirname($file)) or throw new Exception('<b>Error:</b> SQLite file directory not writable');
+		if (!is_writable(dirname($file)))
+				throw new Exception('<b>Error:</b> SQLite file directory not writable');
 		$this->file = $file;
 	}
 	public function getFile() {
@@ -127,7 +132,7 @@ class SQL {
 		if ($c->lastErrorCode()) {
 			throw new Exception('Failed to open SQLite: ('.$c->lastErrorCode().') '.$c->lastErrorMsg());
 			return false;
-		}		
+		}
 		$this->con = $c;
 		return true;
 	}
@@ -139,14 +144,25 @@ class SQL {
 			return false;
 		}
 		$this->con = $c;
-		$this->query("SET character_set_results = '".$this->encoding."', character_set_client = '".$this->encoding."', character_set_connection = '".$this->encoding."', character_set_database = '".$this->encoding."', character_set_server = '".$this->encoding."'");
+		$query = "character_set_client = '$this->encoding',";
+		$query.= "character_set_server = '$this->encoding',";
+		$query.= "character_set_connection = '$this->encoding',";
+		$query.= "character_set_database = '$this->encoding',";
+		$query.= "character_set_results = '$this->encoding'";
+		$this->query("SET ".$query);
+
 		return true;
 	}
 
 	/* --- Close connection ---
 	------------------------ */
 	public function close() {
-		return $this->con->close();
+		if ($this->con != null || $this->con != false) {
+			$res = $this->con->close();
+			$this->con = null;     // set to default value
+			return $res;
+		}
+		return true;
 	}
 
 	public function disconnect() {
@@ -174,7 +190,7 @@ class SQL {
 			$array = $result->fetchArray();
 			if (empty($array))
 					return;
-			
+
 			$res = new stdClass();
 			foreach ($res as $key => $val)
 					$res->$key = $val;
@@ -231,19 +247,174 @@ class SQL {
 	}
 
 	private function getStructure($table) {
-		// TODO: generate structure
+		$file = array();
+		$file[] = '';
+		$file[] = '-- ----------------------------';
+		$file[] = '-- Table structure for `'.$table.'`';
+		$file[] = '-- ----------------------------';
+		$file[] = 'DROP TABLE IF EXISTS `'.$table.'`;';
+		if ($this->type == 'sqlite') {
+			$res = $this->query("SELECT sql FROM sqlite_master WHERE name = '".$table."'");
+			while ($row = $this->fetch_object($res)) {
+				$file[] = $row->sql.';';
+			}
+		} else {
+			$res = $this->query("SHOW CREATE TABLE `".$table."`");
+			while ($row = $this->fetch_array($res)) {
+				$file[] = str_replace(strstr($row['Create Table'], ') ENGINE'), ');', $row['Create Table']);
+			}
+		}
+
+		return implode(PHP_EOL, $file);
 	}
 
 	private function getData($table) {
-		// TODO: list data
+		$file = array();
+		$file[] = '';
+		$file[] = '-- ----------------------------';
+		$file[] = '-- Table content for `'.$table.'`';
+		$file[] = '-- ----------------------------';
+
+		$res = $this->query("SELECT * FROM `".$table."`");
+		while ($row = $this->fetch_array($res)) {
+			$line = 'INSERT INTO `'.$table.'` VALUES (';
+			$vals = array();
+			foreach ($row as $key => $val) {
+				if (!is_numeric($key)) {
+					if (is_null($val)) {
+						$vals[] = 'NULL';
+					} else {
+						$val = str_replace("\r", "", $val);
+						$val = str_replace("\n", PHP_EOL, $val);
+						$vals[] = "'$val'";
+					}
+				}
+			}
+			$line.= implode(',', $vals);
+			$line.= ');';
+			$file[] = $line;
+		}
+
+		return implode(PHP_EOL, $file);
 	}
 
 	public function getDump($part = 'structure,data', $tables = '') {
-		// TODO: create full dump
+		$todo = explode(',', $part);
+
+		$file = array();
+		$this->open();
+		$file[] = "-- SQL-Class Dump by AM.WD";
+		$file[] = "-- Version 1.0";
+		$file[] = "-- http://am-wd.de";
+		$file[] = "--";
+		$file[] = "-- https://bitbucket.org/BlackyPanther/sql-class";
+		$file[] = "--";
+		$file[] = "-- PHP: ".phpversion();
+		if ($this->type == 'sqlite') {
+			$version = SQLite3::version();
+			$file[] = "-- SQL: SQLite ".$version['versionString'];
+			$file[] = "-- File: ".basename($this->file);
+		} else {
+			$file[] = "-- SQL: MySQL ".$this->con->server_info;
+			$file[] = "-- Host: ".$this->host.":".$this->port;
+		}
+		$file[] = "--";
+		$file[] = "-- Time: ".date('d. F Y H:i');
+		$file[] = '';
+		$file[] = 'SET FOREIGN_KEY_CHECKS = 0;';
+
+		if (empty($tables)) {
+			$tbls = $this->getTables();
+		} else {
+			$tbls = explode(',', $tables);
+		}
+
+		foreach ($tbls as $tbl) {
+			if (in_array('structure', $todo))
+					$file[] = $this->getStructure($tbl);
+
+			if (in_array('data', $todo))
+					$file[] = $this->getData($tbl);
+		}
+
+		$this->close();
+
+		$file[] = 'SET FOREIGN_KEY_CHECKS = 1;';
+		return implode(PHP_EOL, $file);
 	}
 
 	public function restoreDump($dump, $returnError = false) {
-		// TODO: restore full dump
+		$file = (is_array($dump)) ? $dump : preg_split("/(\r\n|\n|\r)/", $dump);
+		$line = 0; $lines = count($file);
+
+		$error = '';
+		$comment = array();
+		$query = "";
+		$queries = 0;
+		$querylines = 0;
+		$inparents = false;
+
+		$comment[] = '#';
+		$comment[] = '--';
+
+		$this->open();
+
+		while ($line < $lines) {
+			$dumpline = $file[$line++];
+
+			$dumpline = str_replace("\r", "", $dumpline);
+			$dumpline = str_replace("\n", "", $dumpline);
+
+			if (!$inparents) {
+				$skipline = false;
+				reset($comment);
+
+				foreach ($comment as $c) {
+					if (!$inparents && (trim($dumpline) == '' || strpos($dumpline, $c) === 0)) {
+						$skipline = true;
+						break;
+					}
+				}
+
+				if ($skipline)
+						continue;
+			} else {
+				$dumpline .= PHP_EOL;
+			}
+
+			$dumpline_deslashed = str_replace("\\\\", "", $dumpline);
+			$parents = substr_count($dumpline_deslashed, "'") - substr_count($dumpline_deslashed, "\\'");
+			if ($parents % 2 != 0)
+					$inparents = !$inparents;
+
+			$query .= $dumpline;
+
+			if (!$inparents)
+					$querylines++;
+
+			if (preg_match("/;$/", trim($dumpline)) && !$inparents) {
+				if (!$this->query($query)) {
+					$error .= 'Error in line '.$line.': '.$this->error().PHP_EOL;
+					$error .= 'Code: '.$dumpline.PHP_EOL;
+					$error .= 'Executed: '.$queries.' Queries'.PHP_EOL;
+				}
+
+				$queries++;
+				$querylines = 0;
+				$query = '';
+			}
+		}
+
+		$this->close();
+
+		if (empty($error)) {
+			return true;
+		} else if ($returnError) {
+				return $error;
+		} else {
+			//die(nl2br($error));
+			return false;
+		}
 	}
 
 }
