@@ -5,4 +5,7 @@ If your programming for an WebApplication or simple Website (e.g. CMS), you may 
 
 So you can use this class programming the App and while shipping you can set the correct Database type in a config.
 
-Further Infos coming soon
+__Requirement:__ correct SQL Syntax and no slangs!
+
+Functions for creating and reading a Dump included.
+__CAUTION:__ SQLite and MySQL Dumps are different! Also be careful with commands in your Dump file. Multiline comments with /* */ currently not supported.
