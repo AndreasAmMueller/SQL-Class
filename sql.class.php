@@ -176,7 +176,7 @@ class SQL {
 	}
 
 	public function error() {
-		return ($this->type == 'sqlite') ? $this->con-lastErrorMsg() : $this->con->error;
+		return ($this->type == 'sqlite') ? $this->con->lastErrorMsg() : $this->con->error;
 	}
 
 	/* --- Results ---
