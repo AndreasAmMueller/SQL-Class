@@ -4,7 +4,7 @@
  * sql.class.php
  *
  * @author Andreas Mueller <webmaster@am-wd.de>
- * @version 1.0-20140606
+ * @version 1.0-20141112
  *
  * @description
  * This class tries to provide (full) support for
@@ -31,7 +31,7 @@ class SQL {
 	}
 
 	// static function to create mysql-instance
-	public static function MySQL($user, $password, $database, $host = 'localhost', $port = 3306) {
+	public static function MySQL($user, $password, $database, $port = 3306, $host = '127.0.0.1') {
 		if (!class_exists('mysqli'))
 				throw new Exception('<b>Error:</b> MySQLi Class not installed! Details <a href="http://php.net/manual/de/book.mysqli.php">here</a>');
 
@@ -144,6 +144,7 @@ class SQL {
 			return false;
 		}
 		$this->con = $c;
+		// set encoding correct
 		$query = "character_set_client = '$this->encoding',";
 		$query.= "character_set_server = '$this->encoding',";
 		$query.= "character_set_connection = '$this->encoding',";
