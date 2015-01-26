@@ -4,7 +4,7 @@
  * sql.class.php
  *
  * @author Andreas Mueller <webmaster@am-wd.de>
- * @version 1.0-20141115
+ * @version 1.0-20150126
  *
  * @description
  * This class tries to provide (full) support for
@@ -211,7 +211,7 @@ class SQL {
 					return NULL;
 
 			$res = new stdClass();
-			foreach ($res as $key => $val)
+			foreach ($array as $key => $val)
 					$res->$key = $val;
 
 			return $res;
@@ -369,6 +369,7 @@ class SQL {
 
 		$this->close();
 
+		$file[] = '';
 		$file[] = 'SET FOREIGN_KEY_CHECKS = 1;'; // important for relations on ImmoDB
 		return implode(PHP_EOL, $file);
 	}
@@ -448,6 +449,16 @@ class SQL {
 		} else {
 			return false;
 		}
+	}
+
+	// try to convert SQLite3 => MySQL
+	public function convertToMySQL($dump) {
+		//TODO:
+	}
+
+	// try to convert MySQL => SQLite3
+	public function convertToSQLite($dump) {
+		//TODO:
 	}
 
 }
