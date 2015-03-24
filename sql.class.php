@@ -19,7 +19,7 @@
 
 class SQL {
 	// MySQL
-	private $host, $port, $user, $database, $encoding;
+	private $host, $port, $user, $database, $encoding, $locales;
 	// SQLite
 	private $file;
 	// Both
@@ -47,6 +47,7 @@ class SQL {
 		$self->setDatabase($database);
 		$self->setPort($port);
 		$self->setEncoding('utf8');
+		$self->setLocales('en_US');
 
 		return $self;
 	}
@@ -117,6 +118,13 @@ class SQL {
 		return $this->encoding;
 	}
 
+	public function setLocales($locale) {
+		$this->locales = $locale;
+	}
+	public function getLocales() {
+		return $this->locales;
+	}
+
 	public function setFile($file) {
 		if (!is_writable(dirname($file)))
 				throw new Exception('<b>Error:</b> SQLite file directory not writable');
@@ -161,7 +169,8 @@ class SQL {
 		$query.= "character_set_server = '$this->encoding',";
 		$query.= "character_set_connection = '$this->encoding',";
 		$query.= "character_set_database = '$this->encoding',";
-		$query.= "character_set_results = '$this->encoding'";
+		$query.= "character_set_results = '$this->encoding',";
+		$query.= "lc_time_names = '$this->locales'";
 		$this->query("SET ".$query);
 
 		return true;
