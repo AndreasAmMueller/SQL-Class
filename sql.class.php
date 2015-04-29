@@ -4,7 +4,7 @@
  * sql.class.php
  *
  * @author Andreas Mueller <webmaster@am-wd.de>
- * @version 1.0-20150324
+ * @version 1.1-20150429
  *
  * @description
  * This class tries to provide (full) support for
@@ -18,6 +18,8 @@
 @error_reporting(0);
 
 class SQL {
+	private $version = "1.1";
+
 	// MySQL
 	private $host, $port, $user, $database, $encoding, $locales;
 	// SQLite
@@ -193,6 +195,18 @@ class SQL {
 
 	/* --- Query ---
 	------------- */
+	public function beginTransaction() {
+		$this->query("BEGIN");
+	}
+
+	public function commit() {
+		$this->query("COMMIT");
+	}
+
+	public function rollback() {
+		$this->query("ROLLBACK");
+	}
+
 	public function query($query) {
 		return $this->con->query($query);
 	}
@@ -319,6 +333,7 @@ class SQL {
 					} else {
 						$val = str_replace("\r", "", $val);
 						$val = str_replace("\n", PHP_EOL, $val);
+						$val = str_replace("'", "\'", $val);
 						$vals[] = "'$val'";
 					}
 				}
@@ -343,22 +358,22 @@ class SQL {
 		$file = array();
 		$this->open();
 		$file[] = "-- SQL-Class Dump by AM.WD";
-		$file[] = "-- Version 1.0";
+		$file[] = "-- Version ".$this->version;
 		$file[] = "-- http://am-wd.de";
 		$file[] = "--";
 		$file[] = "-- https://bitbucket.org/BlackyPanther/sql-class";
 		$file[] = "--";
 		$file[] = "-- PHP: ".phpversion();
 		if ($this->type == 'sqlite') {
-			$version = SQLite3::version();
-			$file[] = "-- SQL: SQLite ".$version['versionString'];
+			$v = SQLite3::version();
+			$file[] = "-- SQL: SQLite ".$v['versionString'];
 			$file[] = "-- File: ".basename($this->file);
 		} else {
 			$file[] = "-- SQL: MySQL ".$this->con->server_info;
 			$file[] = "-- Host: ".$this->host.":".$this->port;
 		}
 		$file[] = "--";
-		$file[] = "-- Time: ".date('d. F Y H:i');
+		$file[] = "-- Time: ".date('d. F Y H:i:s');
 		$file[] = '';
 		$file[] = 'SET FOREIGN_KEY_CHECKS = 0;'; // important for realtions on ImmoDB
 
@@ -388,65 +403,82 @@ class SQL {
 	// else return value is TRUE or FALSE to show success
 	// $dump can be a dump file read into a string or already split into an array (each line an enty)
 	public function restoreDump($dump, $returnError = false) {
-		$file = (is_array($dump)) ? $dump : preg_split("/(\r\n|\n|\r)/", $dump);
+		$file = is_array($dump) ? $dump : (file_exists($dump) ? preg_split("/(\r\n|\n|\r)/", file_get_contents($dump)) : preg_split("/(\r\n|\n|\r)/", $dump));
+
 		$line = 0; $lines = count($file);
 
 		$error = '';
-		$comment = array();
 		$query = "";
 		$queries = 0;
 		$querylines = 0;
-		$inparents = false;
-
-		$comment[] = '#';
-		$comment[] = '--';
+		$inParents = false;
+		$inComment = false;
 
 		$this->open();
+		$this->beginTransaction();
 
-		while ($line < $lines) {
-			$dumpline = $file[$line++];
+		try {
+			while ($line < $lines) {
+				$dumpline = $file[$line++];
 
-			$dumpline = str_replace("\r", "", $dumpline);
-			$dumpline = str_replace("\n", "", $dumpline);
+				// remove newline chars
+				$dumpline = str_replace(array("\r", "\n"), array("", ""), $dumpline);
 
-			if (!$inparents) {
-				$skipline = false;
-				reset($comment);
-
-				foreach ($comment as $c) {
-					if (!$inparents && (trim($dumpline) == '' || strpos($dumpline, $c) === 0)) {
-						$skipline = true;
-						break;
-					}
+				// recognize multiline comment-block ending
+				if ($inComment && $this->endsWith($dumpline, "*/")) {
+					$inComment = false;
+					continue;
 				}
 
-				if ($skipline)
+				// we're in multiline comment-block
+				if ($inComment)
 						continue;
-			} else {
-				$dumpline .= PHP_EOL;
-			}
 
-			$dumpline_deslashed = str_replace("\\\\", "", $dumpline);
-			$parents = substr_count($dumpline_deslashed, "'") - substr_count($dumpline_deslashed, "\\'");
-			if ($parents % 2 != 0)
-					$inparents = !$inparents;
-
-			$query .= $dumpline;
-
-			if (!$inparents)
-					$querylines++;
-
-			if (preg_match("/;$/", trim($dumpline)) && !$inparents) {
-				if (!$this->query($query)) {
-					$error .= 'Error in line '.$line.': '.$this->error().PHP_EOL;
-					$error .= 'Code: '.$dumpline.PHP_EOL;
-					$error .= 'Executed: '.$queries.' Queries'.PHP_EOL;
+				// we're not in multiline comment and not in parents
+				if (!$inParents) {
+					// empty or single line comment
+					if (trim($dumpline) == ''
+							|| $this->startsWith($dumpline, "--")
+							|| $this->startsWith($dumpline, "#")) {
+						continue;
+					}
+					// start of multiline comment-block
+					if ($this->startsWith($dumpline, "/*")) {
+						$inComment = true;
+						continue;
+					}
+				} else {
+					$dumpline .= PHP_EOL;
 				}
 
-				$queries++;
-				$querylines = 0;
-				$query = '';
+				$dumpline_deslashed = str_replace("\\\\", "", $dumpline);
+				$parents = substr_count($dumpline_deslashed, "'") - substr_count($dumpline_deslashed, "\\'");
+				if ($parents % 2 != 0)
+						$inParents = !$inParents;
+
+				$query .= $dumpline;
+
+				if (!$inParents)
+						$querylines++;
+
+				if (!$inParents && $this->endsWith(trim($dumpline), ";")) {
+					if (!$this->query($query)) {
+						$error .= 'Error in line '.$line.': '.$this->error().PHP_EOL;
+						$error .= 'Code: '.$dumpline.PHP_EOL;
+						$error .= 'Executed: '.$queries.' Queries'.PHP_EOL;
+					}
+
+					$queries++;
+					$querylines = 0;
+					$query = '';
+				}
 			}
+
+			$this->commit();
+		} catch (Exception $e) {
+			$this->rollback();
+
+			$error .= 'Exception caught: '.$e->getMessage();
 		}
 
 		$this->close();
@@ -468,6 +500,14 @@ class SQL {
 	// try to convert MySQL => SQLite3
 	public function convertToSQLite($dump) {
 		//TODO:
+	}
+
+	private function startsWith($haystack, $needle) {
+		return $needle === "" || strrpos($haystack, $needle, -strlen($haystack)) !== FALSE;
+	}
+
+	private function endsWith($haystack, $needle) {
+		return $needle === "" || (($temp = strlen($haystack) - strlen($needle)) >= 0 && strpos($haystack, $needle, $temp) !== FALSE);
 	}
 
 }

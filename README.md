@@ -1,18 +1,23 @@
 # SQL Class
----
+
+-----
+
 With this class I'll try to provide a basic compatibillity between MySQL and SQLite3.
 
 If your programming for an WebApplication or simple Website (e.g. CMS), you may have problems with your customers Webspace (e.g. no MySQL Server available).   
 So you can use this class programming the App and while shipping you can set the correct Database type in a config.
 
-__Requirement:__ correct SQL Syntax and no slangs like `[...] LIMIT 0, 10;` (common MySQL Slang)
+## Requirements
+- PHP 5.5 or later
+- correct SQL Syntax; (`[...] LIMIT 0, 10;` is common MySQL syntax)
 
-__CAUTION:__ Dumps of SQLite and MySQL are different! So be careful with commands in your Dump file.   
-Multiline comments with `/* */` not supported (maybe in a future release).
+## Notice
+Dumps of SQLite and MySQL are different! So be careful with commands in your Dump file.
 
+## Example
 ```php
 <?php
-// load the Class
+// load Class
 require_once __DIR__."/sql.class.php";
 
 // Create my Object, here I want a MySQL Connection
@@ -24,7 +29,7 @@ require_once __DIR__."/sql.class.php";
 // Host:     123.321.123.321
 $sql = SQL::MySQL("TestUser", "fromErlangenToMunich", "exampleBase", 3307, "123.321.123.321");
 
-// Tell MySQL to use german localize
+// Tell MySQL to use german locales
 $sql->setLocales("de_DE");
 
 // open the connection
@@ -50,6 +55,7 @@ $sql->close();
 ?>
 ```
 
----
-### LICENESE
-My scripts are published under [MIT License](http://opensource.org/licenses/MIT).
+-----
+
+### LICENSE
+My scripts are published under [MIT License](LICENSE). More @ [Wikipedia](http://en.wikipedia.org/wiki/MIT_License).
