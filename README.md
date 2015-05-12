@@ -55,7 +55,10 @@ $sql->close();
 ?>
 ```
 
+## Bugs / Issues
+Please report bugs here: [Issues | AM.WD / SQL-Class](https://git.am-wd.de/AM.WD/SQL-Class/issues)
+
 -----
 
 ### LICENSE
-My scripts are published under [MIT License](LICENSE). More @ [Wikipedia](http://en.wikipedia.org/wiki/MIT_License).
+My scripts are published under [MIT License](https://am-wd.de/?p=about#license).
