@@ -227,6 +227,10 @@ class SQL {
 	// fetch queried results as objects
 	// this will return each time a new object, or NULL if there are no more results
 	public function fetch_object($result) {
+		if ($result == null || $result == false) {
+			return null;
+		}
+
 		if ($this->type == 'sqlite') {
 			// SQLite we need to built ourselves
 			$array = $result->fetchArray();

@@ -56,7 +56,7 @@ $sql->close();
 ```
 
 ## Bugs / Issues
-Please report bugs here: [Issues | AM.WD / SQL-Class](https://git.am-wd.de/AM.WD/SQL-Class/issues)
+Please report bugs to [Bitbucket | Issues](https://bitbucket.org/BlackyPanther/sql-class/issues)
 
 -----
 
