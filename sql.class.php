@@ -114,6 +114,9 @@ class SQL {
 	}
 
 	public function setEncoding($enc) {
+		if ($this->type == 'mysql') {
+			$this->con->set_charset($enc);
+		}
 		$this->encoding = $enc;
 	}
 	public function getEncoding() {
