@@ -4,7 +4,7 @@
  * sql.class.php
  *
  * @author Andreas Mueller <webmaster@am-wd.de>
- * @version 1.1-20150429
+ * @version 1.1-20150716
  *
  * @description
  * This class tries to provide (full) support for
@@ -134,6 +134,15 @@ class SQL {
 	}
 	public function getFile() {
 		return $this->file;
+	}
+
+	public function getVersion() {
+		if ($this->type == 'sqlite') {
+			$v = SQLite3::version();
+			return $v['versionString'];
+		} else {
+			return $this->con->server_info;
+		}
 	}
 
 	/* --- Open connection ---
@@ -369,11 +378,10 @@ class SQL {
 		$file[] = "--";
 		$file[] = "-- PHP: ".phpversion();
 		if ($this->type == 'sqlite') {
-			$v = SQLite3::version();
-			$file[] = "-- SQL: SQLite ".$v['versionString'];
+			$file[] = "-- SQL: SQLite ".$this->getVersion();
 			$file[] = "-- File: ".basename($this->file);
 		} else {
-			$file[] = "-- SQL: MySQL ".$this->con->server_info;
+			$file[] = "-- SQL: MySQL ".$this->getVersion();
 			$file[] = "-- Host: ".$this->host.":".$this->port;
 		}
 		$file[] = "--";
