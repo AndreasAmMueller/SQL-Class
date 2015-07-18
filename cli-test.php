@@ -1,6 +1,7 @@
 #!/usr/bin/env php
 <?php
 require_once __DIR__.'/sql.class.php';
+use AMWD\SQL as SQL;
 
 $sql = SQL::MySQL("root", "root", "test");
 $sql->setLocales("de_DE");

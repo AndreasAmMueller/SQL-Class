@@ -14,6 +14,7 @@
  *
  * Correct syntax (no slangs) required!
  **/
+namespace AMWD;
 
 @error_reporting(0);
 
