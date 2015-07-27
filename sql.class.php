@@ -37,9 +37,9 @@ class SQL {
 	public static function MySQL($user, $password, $database, $port = 3306, $host = '127.0.0.1') {
 		if (!class_exists('mysqli')) {
 			if (php_sapi_name() == 'cli') {
-				throw new Exception('Error: MySQLi Class not installed! Details at http://php.net/manual/de/book.mysqli.php');
+				throw new \Exception('Error: MySQLi Class not installed! Details at http://php.net/manual/de/book.mysqli.php');
 			} else {
-				throw new Exception('<b>Error:</b> MySQLi Class not installed! Details <a href="http://php.net/manual/de/book.mysqli.php">here</a>');
+				throw new \Exception('<b>Error:</b> MySQLi Class not installed! Details <a href="http://php.net/manual/de/book.mysqli.php">here</a>');
 			}
 		}
 
@@ -59,9 +59,9 @@ class SQL {
 	public static function SQLite($file, $password = '') {
 		if (!class_exists('SQLite3')) {
 			if (php_sapi_name() == 'cli') {
-				throw new Exception('Error: SQLite3 Class not installed! Details at http://php.net/manual/de/book.sqlite3.php');
+				throw new \Exception('Error: SQLite3 Class not installed! Details at http://php.net/manual/de/book.sqlite3.php');
 			} else {
-				throw new Exception('<b>Error:</b> SQLite3 Class not installed! Details <a href="http://php.net/manual/de/book.sqlite3.php">here</a>');
+				throw new \Exception('<b>Error:</b> SQLite3 Class not installed! Details <a href="http://php.net/manual/de/book.sqlite3.php">here</a>');
 			}
 		}
 
@@ -133,7 +133,7 @@ class SQL {
 
 	public function setFile($file) {
 		if (!is_writable(dirname($file)))
-				throw new Exception('<b>Error:</b> SQLite file directory not writable');
+				throw new \Exception('<b>Error:</b> SQLite file directory not writable');
 		$this->file = $file;
 	}
 	public function getFile() {
@@ -142,7 +142,7 @@ class SQL {
 
 	public function getVersion() {
 		if ($this->type == 'sqlite') {
-			$v = SQLite3::version();
+			$v = \SQLite3::version();
 			return $v['versionString'];
 		} else {
 			return $this->con->server_info;
@@ -162,9 +162,9 @@ class SQL {
 	// private helper to manage errors in SQLite
 	private function openSQLite() {
 		$switch = SQLITE3_OPEN_READWRITE | SQLITE3_OPEN_CREATE;
-		$c = new SQLite3($this->file, $switch, $this->password);
+		$c = new \SQLite3($this->file, $switch, $this->password);
 		if ($c->lastErrorCode()) {
-			throw new Exception('Failed to open SQLite: ('.$c->lastErrorCode().') '.$c->lastErrorMsg());
+			throw new \Exception('Failed to open SQLite: ('.$c->lastErrorCode().') '.$c->lastErrorMsg());
 			return false;
 		}
 		$this->con = $c;
@@ -173,9 +173,9 @@ class SQL {
 
 	// private helper to manage conn errors in MySQL and encoding of transfer
 	private function openMySQL() {
-		$c = new mysqli($this->host, $this->user, $this->password, $this->database, $this->port);
+		$c = new \mysqli($this->host, $this->user, $this->password, $this->database, $this->port);
 		if ($c->connect_errno) {
-			throw new Exception('Failed to connect to MySQL: ('.$c->connect_errno.') '.$c->connect_error);
+			throw new \Exception('Failed to connect to MySQL: ('.$c->connect_errno.') '.$c->connect_error);
 			return false;
 		}
 		$this->con = $c;
@@ -250,7 +250,7 @@ class SQL {
 			if (empty($array))
 					return NULL;
 
-			$res = new stdClass();
+			$res = new \stdClass();
 			foreach ($array as $key => $val)
 					$res->$key = $val;
 

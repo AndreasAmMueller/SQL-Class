@@ -3,17 +3,21 @@
 require_once __DIR__.'/sql.class.php';
 use AMWD\SQL as SQL;
 
-$sql = SQL::MySQL("root", "root", "test");
+$sql = SQL::MySQL("root", "root", "mysql");
 $sql->setLocales("de_DE");
 
-//file_put_contents(__DIR__.'/dump.sql', $sql->getDump());
-//echo $sql->restoreDump(file_get_contents(__DIR__.'/dump.sql'), true);
-
 $sql->open();
-$query = "INSERT INTO test (name) VALUES('blubb')";
-$sql->query($query);
-echo "Last inserted ID: ".$sql->insert_id();
-echo PHP_EOL;
+$query = "SELECT user FROM user";
+$res = $sql->query($query);
+
+while ($row = $sql->fetch_object($res)) {
+	echo $row->user.PHP_EOL;
+}
+
 $sql->close();
+
+$sql = SQL::SQLite(__DIR__.'/test.sqlite');
+echo "SQLite Version: ".$sql->getVersion();
+echo PHP_EOL;
 
 ?>
