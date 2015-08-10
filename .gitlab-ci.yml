@@ -1,0 +1,17 @@
+test-mysql:
+  script:
+    - php tools/phpunit.phar --verbose tests/MySQLTest.php
+  tags:
+    - php
+    - mysql
+test-sqlite:
+  script:
+    - php tools/phpunit.phar --verbose tests/SQLiteTest.php
+  tags:
+    - php
+    - sqlite
+docs:
+  script:
+    - php tools/phpDocumentor.phar -p -d src/ -t doc/ --template="clean"
+  tags:
+    - php
