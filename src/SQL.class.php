@@ -16,12 +16,12 @@ namespace AMWD\SQL;
  * @copyright  (c) 2015 Andreas Mueller
  * @license    MIT - http://am-wd.de/index.php?p=about#license
  * @link       https://bitbucket.org/BlackyPanther/sql-class
- * @version    v1.2-20150810 | stable
+ * @version    v1.2-20150811 | stable
  */
 abstract class SQL {
 
 	// --- constants
-	// =========================================================================
+	// ===========================================================================
 
 	/**
 	 * Flag for an SQL dump if only structure should be dumped
@@ -54,7 +54,7 @@ abstract class SQL {
 	const SQL_RETURN_NO_ERROR = false;
 
 	// --- class-member
-	// =========================================================================
+	// ===========================================================================
 
 	/**
 	 * version of these classes
@@ -73,9 +73,15 @@ abstract class SQL {
 	 * @var mixed
 	 */
 	protected $conn;
+	
+	/**
+	 * status of Connection
+	 * @var string
+	 */
+	protected $status;
 
 	// --- 'magic' methods
-	// =========================================================================
+	// ===========================================================================
 
 	/**
 	 * initialize new base object with property array
@@ -83,7 +89,8 @@ abstract class SQL {
 	 * @return SQL
 	 */
 	function __construct() {
-		$data = array();
+		$this->data = array();
+		$this->status = 'closed';
 	}
 
 	/**
@@ -147,7 +154,7 @@ abstract class SQL {
 	}
 
 	// --- static methods
-	// =========================================================================
+	// ===========================================================================
 
 	/**
 	 * static function initializing a new instance of MySQL and keep compatibility with v1.1
@@ -177,7 +184,7 @@ abstract class SQL {
 	}
 
 	// --- version strings
-	// =========================================================================
+	// ===========================================================================
 
 	/**
 	 * return version number of these classes
@@ -194,7 +201,7 @@ abstract class SQL {
 	abstract public function driver_version();
 
 	// --- data-connection
-	// =========================================================================
+	// ===========================================================================
 
 	/**
 	 * alias for open()
@@ -212,6 +219,9 @@ abstract class SQL {
 
 	/**
 	 * function stub to establish a database connection
+	 *
+	 * @return bool
+	 * @throws \RuntimeException if something went wrong establishing the connection
 	 */
 	abstract public function open();
 
@@ -223,14 +233,23 @@ abstract class SQL {
 		if ($this->conn != null || $this->conn != false) {
 			$ret = $this->conn->close();
 			$this->conn = null;
+			$this->status = 'closed';
 			return $ret;
 		}
 
 		return true;
 	}
+	
+	/**
+	 * returns current connection status
+	 * @return string
+	 */
+	public function status() {
+	 	return $this->status;
+	 }
 
 	// --- transaction-handling
-	// =========================================================================
+	// ===========================================================================
 
 	/**
 	 * starting an transaction
@@ -257,7 +276,7 @@ abstract class SQL {
 	}
 
 	// --- queries
-	// =========================================================================
+	// ===========================================================================
 
 	/**
 	 * execute a simple querry directly
@@ -275,7 +294,7 @@ abstract class SQL {
 	abstract public function error();
 
 	// --- data-results
-	// =========================================================================
+	// ===========================================================================
 
 	/**
 	 * returns all results as associative array
@@ -311,7 +330,7 @@ abstract class SQL {
 	abstract public function affected_rows();
 
 	// --- db-dumps
-	// =========================================================================
+	// ===========================================================================
 
 	/**
 	 * create an complete SQL dump from (selected) tables
@@ -423,7 +442,7 @@ abstract class SQL {
 	}
 
 	// --- dump conversion
-	// =========================================================================
+	// ===========================================================================
 
 /**
 	 * try to convert a SQLite dump into an MySQL dump
@@ -446,7 +465,7 @@ abstract class SQL {
 	}
 
 	// --- helper for dump-create
-	// =========================================================================
+	// ===========================================================================
 
 	/**
 	 * function stub; returning SQL structure of table
@@ -494,7 +513,7 @@ abstract class SQL {
 	}
 
 	// --- helper for dump-restore
-	// =========================================================================
+	// ===========================================================================
 
 	/**
 	 * check if $haystack starts with $needle
@@ -527,7 +546,7 @@ abstract class SQL {
  * @copyright  (c) 2015 Andreas Mueller
  * @license    MIT - http://am-wd.de/index.php?p=about#license
  * @link       https://bitbucket.org/BlackyPanther/sql-class
- * @version    v1.2-20150810 | stable
+ * @version    v1.2-20150811 | stable
  */
 class MySQL extends SQL {
 	/**
@@ -595,6 +614,7 @@ class MySQL extends SQL {
 ;";
 
 		$this->query($query);
+		$this->status = 'open';
 
 		return true;
 	}
@@ -659,7 +679,12 @@ class MySQL extends SQL {
 	 * @return string with complete dump
 	 */
 	public function get_dump($part = self::SQL_DB_STRUCTUREANDDATA, $tables = '') {
-		$this->open();
+		$close = false;
+
+		if ($this->status == 'closed') {
+			$this->open();
+			$close = true;
+		}
 
 		if (!is_array($part))
 			$part = explode(',', $part);
@@ -704,7 +729,8 @@ class MySQL extends SQL {
 		$file[] = "SET FOREIGN_KEY_CHECKS = 1;";
 		$file[] = "";
 
-		$this->close();
+		if ($close)
+			$this->close();
 
 		return implode(PHP_EOL, $file);
 	}
@@ -740,7 +766,7 @@ class MySQL extends SQL {
  * @copyright  (c) 2015 Andreas Mueller
  * @license    MIT - http://am-wd.de/index.php?p=about#license
  * @link       https://bitbucket.org/BlackyPanther/sql-class
- * @version    v1.2-20150810 | stable
+ * @version    v1.2-20150811 | stable
  */
 class SQLite extends SQL {
 	/**
@@ -787,6 +813,8 @@ class SQLite extends SQL {
 			throw new \RuntimeException('Failed to connect: #'.$conn->lastErrorCode().' | '.$conn->lastErrorMsg());
 
 		$this->conn = $conn;
+		$this->status = 'open';
+
 		return true;
 	}
 
@@ -862,7 +890,12 @@ class SQLite extends SQL {
 	 * @return string with complete dump
 	 */
 	public function get_dump($part = self::SQL_DB_STRUCTUREANDDATA, $tables = '') {
-		$this->open();
+		$close = false;
+		
+		if ($this->status == 'closed') {
+			$this->open();
+			$close = true;
+		}
 
 		if (!is_array($part))
 			$part = explode(',', $part);
@@ -909,7 +942,8 @@ class SQLite extends SQL {
 		$file[] = "PRAGMA foreign_keys = true;";
 		$file[] = "";
 
-		$this->close();
+		if ($close)
+			$this->close();
 
 		return implode(PHP_EOL, $file);
 	}
