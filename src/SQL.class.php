@@ -9,14 +9,14 @@
 namespace AMWD\SQL;
 
 /**
- * Base-class with all functionality needed functionality to access a database
+ * Base-class with all functionality (or at least stubs) needed to access a database
  *
  * @package    SQL
  * @author     Andreas Mueller <webmaster@am-wd.de>
  * @copyright  (c) 2015 Andreas Mueller
  * @license    MIT - http://am-wd.de/index.php?p=about#license
  * @link       https://bitbucket.org/BlackyPanther/sql-class
- * @version    v1.2-20150811 | stable
+ * @version    v1.2-20151109 | stable
  */
 abstract class SQL {
 
@@ -606,10 +606,10 @@ class MySQL extends SQL {
 		// enforce correct encoding
 		$query = "SET
     character_set_client     = '".$this->encoding."'
-  , character_set_server     = '".$this->encoding."''
-  , character_set_connection = '".$this->encoding."''
-  , character_set_database   = '".$this->encoding."''
-  , character_set_results    = '".$this->encoding."''
+  , character_set_server     = '".$this->encoding."'
+  , character_set_connection = '".$this->encoding."'
+  , character_set_database   = '".$this->encoding."'
+  , character_set_results    = '".$this->encoding."'
   , lc_time_names            = '".$this->locale."'
 ;";
 

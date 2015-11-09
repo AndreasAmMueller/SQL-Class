@@ -9,14 +9,14 @@
 namespace AMWD\SQL;
 
 /**
- * Represents a DataReader to perform a SQL Request
+ * Represents a DataReader for an executed SQLCommand
  *
  * @package    SQL
  * @author     Andreas Mueller <webmaster@am-wd.de>
  * @copyright  (c) 2015 Andreas Mueller
  * @license    MIT - http://am-wd.de/index.php?p=about#license
  * @link       https://bitbucket.org/BlackyPanther/sql-class
- * @version    v1.2-20150828 | stable
+ * @version    v1.0-20151109 | stable
  */
 class SQLDataReader {
 
@@ -34,6 +34,9 @@ class SQLDataReader {
 	
 	/**
 	 * initalize new instance of DataReader
+	 * 
+	 * @param mixed[] $data array with data from SQL-Class.fetch_array()
+	 * 
 	 * @return DataReader
 	 */
 	function __construct($data = null) {
@@ -57,34 +60,37 @@ class SQLDataReader {
 	}
 	
 	/**
-	 * get parameter of current data block
+	 * get parameter of current data block;
+	 * if parameter name is empty, whole array will be returned.
 	 * 
 	 * @param string $name name of parameter
 	 * 
 	 * @return mixed
 	 * @throws \OutOfBoundsException if parameter is requested without valid read_data()
 	 */
-	public function get($name) {
+	public function get($name = '') {
 		if ($this->pos == -1) {
 			$trace = debug_backtrace();
 			trigger_error('Reader not executed at DataReader.get(): '
-										.$name.' in '
-										.$trace[0]['file'].' at row '
-										.$trace[0]['line']
-					, E_USER_ERROR);
+			              .$name.' in '
+			              .$trace[0]['file'].' at line '
+			              .$trace[0]['line']
+			, E_USER_ERROR);
 			
 			return null;
 		} else if ($this->pos < count($this->data)) {
 			if (array_key_exists($name, $this->data[$this->pos])) {
 				return $this->data[$this->pos][$name];
+			} else if (empty($name)) {
+				return $this->data[$this->pos];
 			}
 			
 			$trace = debug_backtrace();
 			trigger_error('Undefined key for DataReader.get(): '
-										.$name.' in '
-										.$trace[0]['file'].' at row '
-										.$trace[0]['line']
-					, E_USER_WARNING);
+			              .$name.' in '
+			              .$trace[0]['file'].' at line '
+			              .$trace[0]['line']
+			, E_USER_WARNING);
 			
 			return null;
 		} else {
@@ -108,10 +114,10 @@ class SQLDataReader {
 			if ($date['error_count'] > 0 || $date['warning_count'] > 0) {
 				$trace = debug_backtrace();
 				trigger_error('Parsing Error on DataReader.get_DateTime(): '
-											.$name.' in '
-											.$trace[0]['file'].' at row '
-											.$trace[0]['line']
-						, E_USER_WARNING);
+				              .$name.' in '
+				              .$trace[0]['file'].' at row '
+				              .$trace[0]['line']
+				, E_USER_WARNING);
 				return null;
 			}
 			

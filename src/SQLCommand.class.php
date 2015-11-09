@@ -17,7 +17,7 @@ require_once __DIR__.'/SQLDataReader.class.php';
  * @copyright  (c) 2015 Andreas Mueller
  * @license    MIT - http://am-wd.de/index.php?p=about#license
  * @link       https://bitbucket.org/BlackyPanther/sql-class
- * @version    v1.2-20150828 | stable
+ * @version    v1.0-20151109 | stable
  */
 class SQLCommand {
 
@@ -58,9 +58,12 @@ class SQLCommand {
 	// ===========================================================================
 
 		/**
-	 * initialize new base object with property array
+	 * initialize new base object with property array.
 	 *
-	 * @return SQL
+	 * @param string $query query to execute with possible placeholders
+	 * @param SQL $conn connection to database
+	 * 
+	 * @return SQLCommand
 	 */
 	function __construct($query, $conn) {
 		$this->query = trim($query);
@@ -116,7 +119,7 @@ class SQLCommand {
 				break;
 			case 'string':
 				$this->paramTypes[$name] = 's';
-				$this->params[$name] = "'".str_replace("'", "\'", strval($value))."'";
+				$this->params[$name] = "'".$this->conn->real_escape_string(strval($value))."'";
 				break;
 			case 'array':
 				$this->add_parameter($name, strval(json_encode($value)));
@@ -159,10 +162,10 @@ class SQLCommand {
 		
 		$trace = debug_backtrace();
 		trigger_error('Undefined key for delete_parameter(): '
-									.$name.' in '
-									.$trace[0]['file'].' at row '
-									.$trace[0]['line']
-				, E_USER_NOTICE);
+		              .$name.' in '
+		              .$trace[0]['file'].' at line '
+		              .$trace[0]['line']
+		, E_USER_NOTICE);
 		
 		return false;
 	}
@@ -190,7 +193,7 @@ class SQLCommand {
 		$close = $this->conn->status() == 'closed';
 		
 		$this->conn->open();
-		$this->conn->query($this->query);
+		$this->conn->query($this->queryParsed);
 		
 		$ret = empty($this->conn->error());
 		
@@ -213,14 +216,16 @@ class SQLCommand {
 		$close = $this->conn->status() == 'closed';
 		
 		$this->conn->open();
-		$res = $this->conn->query($this->query);
+		$res = $this->conn->query($this->queryParsed);
 		
 		$data = array();
 		while ($row = $this->conn->fetch_array($res)) {
 			$data[] = $row;
 		}
 		
-		$ret = empty($this->conn->error());
+		// SQLite causes 'unknown error' after successful fetch of all data.
+		// Don't have a clue why...
+		$ret = empty($this->conn->error()) || $this->conn->error() == 'unknown error';
 		
 		if ($close)
 			$this->conn->close();
@@ -240,8 +245,9 @@ class SQLCommand {
 		if (empty($this->query))
 			return;
 
+		$this->queryParsed = $this->query;
 		foreach ($this->params as $key => $value) {
-			$this->queryParsed = str_replace('@'.$key, $value, $this->query);
+			$this->queryParsed = str_replace('@'.$key, $value, $this->queryParsed);
 		}
 	}
 
