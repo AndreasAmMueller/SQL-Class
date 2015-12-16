@@ -17,40 +17,52 @@ Dumps of SQLite and MySQL are different! So be careful with commands in your Dum
 ## Example
 ```php
 <?php
-// load Class
-require_once __DIR__."/sql.class.php";
+// Load classes
+require_once __DIR__.'/src/SQL.class.php';
+require_once __DIR__.'/src/SQLCommand.class.php';
 
-// Create my Object, here I want a MySQL Connection
-// We will use our static Function to create one
-// User:     TestUser
-// Password: fromErlangenToMunich
-// Database: exampleBase
-// Port:     3307
-// Host:     123.321.123.321
-$sql = SQL::MySQL("TestUser", "fromErlangenToMunich", "exampleBase", 3307, "123.321.123.321");
+// Set timezone for cli
+date_default_timezone_set('Europe/Berlin');
 
-// Tell MySQL to use german locales
-$sql->setLocales("de_DE");
+// Set credentials for MySQL
+$user     = 'root';
+$password = 'root';
+$database = 'test';
+$host     = '127.0.0.1';
+$port     = 3306;
 
-// open the connection
-$sql->open();
+// Create new connection
+$sql = new AMWD\SQL\MySQL($user, $password, $database, $port, $host);
+// Define locals for e.g. DateTime
+$sql->locales = 'de_DE';
 
-// Example Query
-// I just want to get all information from all users with firstname George
-$res = $sql->query("SELECT * FROM users WHERE firstname = 'George'");
+// Perform a request with parameter
+$query = "SELECT
+	movie_id    AS id,
+	movie_title AS title,
+	movie_year  AS year,
+	genre_name  AS genre
+FROM
+	movies
+JOIN
+	genres ON movie_genre = genre_id
+WHERE
+	movie_year = @year
+;";
 
-// tell me the number of results (lines)
-$count = $sql->num_rows($res);
+// Create command
+$cmd = new AMWD\SQL\SQLCommand($query, $sql);
+// Add parameter
+$cmd->add_parameter('year', 2012);
 
-// print out all results
-echo "We have $count Results to Present".PHP_EOL;
-echo "---------------------------------".PHP_EOL;
-while ($row = $sql->fetch_object($res)) {
-	echo $row->firstname . " " . $row->lastname.PHP_EOL;
+// Execute command -> returns SQLDataReader
+$dr = $cmd->execute_reader();
+
+// Read all data with this reader
+while ($dr->read()) {
+	// and return them in a clean way
+	echo '#'.$dr->get_Integer('id').' | '.$dr->get_String('title').' ('.$dr->get_Int('year').') - '.$dr->get_String('genre').PHP_EOL;
 }
-
-// close connection
-$sql->close();
 
 ?>
 ```
