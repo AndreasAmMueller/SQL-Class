@@ -17,7 +17,7 @@ require_once __DIR__.'/SQLDataReader.class.php';
  * @copyright  (c) 2015 Andreas Mueller
  * @license    MIT - http://am-wd.de/index.php?p=about#license
  * @link       https://bitbucket.org/BlackyPanther/sql-class
- * @version    v1.0-20151109 | stable
+ * @version    v1.0-20151216 | stable
  */
 class SQLCommand {
 
@@ -70,7 +70,7 @@ class SQLCommand {
 		$this->queryParsed = '';
 		$this->conn = $conn;
 
-		$this->params = array();
+		$this->params     = array();
 		$this->paramTypes = array();
 	}
 
