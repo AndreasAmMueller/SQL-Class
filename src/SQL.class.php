@@ -16,7 +16,7 @@ namespace AMWD\SQL;
  * @copyright  (c) 2015 Andreas Mueller
  * @license    MIT - http://am-wd.de/index.php?p=about#license
  * @link       https://bitbucket.org/BlackyPanther/sql-class
- * @version    v1.2-20151109 | stable
+ * @version    v1.2-20151216 | stable
  */
 abstract class SQL {
 
@@ -114,10 +114,10 @@ abstract class SQL {
 
 		$trace = debug_backtrace();
 		trigger_error('Undefined key for __get(): '
-									.$name.' in '
-									.$trace[0]['file'].' at row '
-									.$trace[0]['line']
-				, E_USER_NOTICE);
+		              .$name.' in '
+		              .$trace[0]['file'].' at row '
+		              .$trace[0]['line']
+			, E_USER_NOTICE);
 
 		return null;
 	}
@@ -309,6 +309,15 @@ abstract class SQL {
 	 * @return mixed
 	 */
 	abstract public function fetch_object($result);
+	
+	/**
+	 * returns all results as associative array as fetch_array.
+	 * @param \mysqli_result $result result of last executed query
+	 * @return mixed[]
+	*/
+	public function fetch_assoc($result) {
+		return $this->fetch_array($result);
+	}
 
 	/**
 	 * returns number of rows in current result
@@ -335,7 +344,7 @@ abstract class SQL {
 	/**
 	 * create an complete SQL dump from (selected) tables
 	 *
-	 * @param mixed $part string or string-array with structure, data or structure,data
+	 * @param mixed $part   string or string-array with structure, data or structure,data
 	 * @param mixed $tables string or string-array with tablenames for dump
 	 *
 	 * @return string with complete dump
@@ -345,25 +354,31 @@ abstract class SQL {
 	/**
 	 * restore an SQL dump
 	 *
-	 * @param mixed $dump dump as line-separated array, filepath or string
-	 * @param bool $returnError flag if error should be returned
+	 * @param mixed $dump        dump as line-separated array, filepath or string
+	 * @param bool  $exitOnError flag if restore should proceed on error or abort
+	 * @param bool  $returnError flag if error should be returned
 	 *
 	 * @return mixed
 	 */
-	public function restore_dump($dump, $returnError = self::SQL_RETURN_NO_ERROR) {
+	public function restore_dump($dump, $exitOnError = false, $returnError = self::SQL_RETURN_NO_ERROR) {
 		$file = is_array($dump) ? $dump : (file_exists($dump) ? preg_split("/(\r\n|\n|\r)/", file_get_contents($dump)) : preg_split("/(\r\n|\n|\r)/", $dump));
+		$close = false;
 
-		$line = 0;
-		$lines = count($file);
+		if ($this->status == 'closed') {
+			$this->open();
+			$close = true;
+		}
 
-		$error = '';
-		$query = "";
-		$queries = 0;
+		$line       = 0;
+		$lines      = count($file);
+
+		$error      = '';
+		$query      = "";
+		$queries    = 0;
 		$querylines = 0;
-		$inParents = false;
-		$inComment = false;
+		$inParents  = false;
+		$inComment  = false;
 
-		$this->open();
 		$this->begin_transaction();
 
 		try {
@@ -415,22 +430,26 @@ abstract class SQL {
 						$error .= 'Error in line '.$line.': '.$this->error().PHP_EOL;
 						$error .= 'Code: '.$dumpline.PHP_EOL;
 						$error .= 'Executed: '.$queries.' Queries'.PHP_EOL;
+						
+						if ($exitOnError)
+							break;
 					}
 
 					$queries++;
 					$querylines = 0;
-					$query = '';
+					$query      = '';
 				}
 			}
 
 			$this->commit();
-		} catch (Exception $ex) {
+		} catch (\Exception $ex) {
 			$this->rollback();
 
 			$error .= 'Exception caught: '.$ex->getMessage();
 		}
 
-		$this->close();
+		if ($close)
+			$this->close();
 
 		if (empty($error)) {
 			return true;
@@ -491,16 +510,23 @@ abstract class SQL {
 		$res = $this->query("SELECT * FROM `".$table."`;");
 		while ($row = $this->fetch_array($res)) {
 			$line = 'INSERT INTO `'.$table.'` VALUES (';
+			
+			$keys = array();
 			$vals = array();
+			
 			foreach ($row as $key => $val) {
 				if (!is_numeric($key)) {
+					$keys[] = '`'.$key.'`';
+					
 					if (is_null($val)) {
 						$vals[] = 'NULL';
+					} else if (is_numeric($val)) {
+						$vals[] = is_int($val) ? intval($val) : floatval($val);
 					} else {
 						$val = str_replace("\r", "", $val);
 						$val = str_replace("\n", PHP_EOL, $val);
 						$val = str_replace("'", "\'", $val);
-						$vals[] = "'$val'";
+						$vals[] = "'".strval($val)."'";
 					}
 				}
 			}
@@ -546,7 +572,7 @@ abstract class SQL {
  * @copyright  (c) 2015 Andreas Mueller
  * @license    MIT - http://am-wd.de/index.php?p=about#license
  * @link       https://bitbucket.org/BlackyPanther/sql-class
- * @version    v1.2-20150811 | stable
+ * @version    v1.2-20151216 | stable
  */
 class MySQL extends SQL {
 	/**
@@ -572,7 +598,7 @@ class MySQL extends SQL {
 		$this->port     = $port;
 		$this->hostname = $hostname;
 		$this->encoding = 'utf8';
-		$this->locale   = 'en_US';
+		$this->locales  = 'en_US';
 	}
 
 	/**
@@ -610,7 +636,7 @@ class MySQL extends SQL {
   , character_set_connection = '".$this->encoding."'
   , character_set_database   = '".$this->encoding."'
   , character_set_results    = '".$this->encoding."'
-  , lc_time_names            = '".$this->locale."'
+  , lc_time_names            = '".$this->locales."'
 ;";
 
 		$this->query($query);
@@ -685,16 +711,26 @@ class MySQL extends SQL {
 			$this->open();
 			$close = true;
 		}
-
+		
 		if (!is_array($part))
 			$part = explode(',', $part);
 
-		if (!is_array($tables))
-			$tables = explode(',', $tables);
-
-		if (count($tables) == 0) {
+		if (!is_array($tables)) {
+			$tables = trim($tables);
+			
+			$tmp = empty($tables) ? array() : explode(',', $tables);
 			$tables = array();
+			
+			foreach ($tmp as $tbl) {
+				$tbl = trim($tbl);
+				if (!empty($tbl))
+					$tables[] = $tbl;
+			}
+		}
+		
+		if (count($tables) == 0) {
 			$res = $this->query("SHOW TABLES FROM `".$this->database."`");
+			
 			while ($row = $this->fetch_array($res)) {
 				$tables[] = $row['Tables_in_'.$this->database];
 			}
@@ -766,7 +802,7 @@ class MySQL extends SQL {
  * @copyright  (c) 2015 Andreas Mueller
  * @license    MIT - http://am-wd.de/index.php?p=about#license
  * @link       https://bitbucket.org/BlackyPanther/sql-class
- * @version    v1.2-20150811 | stable
+ * @version    v1.2-20151216 | stable
  */
 class SQLite extends SQL {
 	/**
@@ -900,8 +936,18 @@ class SQLite extends SQL {
 		if (!is_array($part))
 			$part = explode(',', $part);
 
-		if (!is_array($tables))
-			$tables = explode(',', $tables);
+		if (!is_array($tables)) {
+			$tables = trim($tables);
+			
+			$tmp = empty($tables) ? array() : explode(',', $tables);
+			$tables = array();
+			
+			foreach ($tmp as $tbl) {
+				$tbl = trim($tbl);
+				if (!empty($tbl))
+					$tables[] = $tbl;
+			}
+		}
 
 		if (count($tables) == 0) {
 			$tables = array();

@@ -16,7 +16,7 @@ namespace AMWD\SQL;
  * @copyright  (c) 2015 Andreas Mueller
  * @license    MIT - http://am-wd.de/index.php?p=about#license
  * @link       https://bitbucket.org/BlackyPanther/sql-class
- * @version    v1.0-20151109 | stable
+ * @version    v1.0-20151216 | stable
  */
 class SQLDataReader {
 
@@ -161,6 +161,17 @@ class SQLDataReader {
 	 */
 	public function get_Integer($name) {
 		return intval($this->get($name));
+	}
+	
+	/**
+	 * get parameter of current data block as integer.
+	 * 
+	 * @param  string $name name of parameter
+	 * 
+	 * @return integer
+	 */
+	public function get_Int($name) {
+		return $this->get_Integer($name);
 	}
 	
 	/**
