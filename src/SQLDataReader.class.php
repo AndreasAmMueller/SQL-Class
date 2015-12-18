@@ -16,7 +16,7 @@ namespace AMWD\SQL;
  * @copyright  (c) 2015 Andreas Mueller
  * @license    MIT - http://am-wd.de/index.php?p=about#license
  * @link       https://bitbucket.org/BlackyPanther/sql-class
- * @version    v1.0-20151216 | stable
+ * @version    v1.0-20151218 | stable
  */
 class SQLDataReader {
 
@@ -35,7 +35,7 @@ class SQLDataReader {
 	/**
 	 * initalize new instance of DataReader
 	 * 
-	 * @param mixed[] $data array with data from SQL-Class.fetch_array()
+	 * @param mixed[] $data array with data from SQL::fetch_array()
 	 * 
 	 * @return DataReader
 	 */
@@ -71,7 +71,7 @@ class SQLDataReader {
 	public function get($name = '') {
 		if ($this->pos == -1) {
 			$trace = debug_backtrace();
-			trigger_error('Reader not executed at DataReader.get(): '
+			trigger_error('Reader not executed at SQLDataReader->get(): '
 			              .$name.' in '
 			              .$trace[0]['file'].' at line '
 			              .$trace[0]['line']
@@ -86,7 +86,7 @@ class SQLDataReader {
 			}
 			
 			$trace = debug_backtrace();
-			trigger_error('Undefined key for DataReader.get(): '
+			trigger_error('Undefined key for SQLDataReader->get(): '
 			              .$name.' in '
 			              .$trace[0]['file'].' at line '
 			              .$trace[0]['line']
@@ -227,6 +227,28 @@ class SQLDataReader {
 	 */
 	public function get_Object($name) {
 		return json_decode($this->get_String($name));
+	}
+	
+	/**
+	 * get associative array as from the SQL statement
+	 * 
+	 * @return mixed[]
+	 */
+	public function get_sql_array() {
+		return $this->get();
+	}
+	
+	/**
+	 * get object as from the SQL statement
+	 * 
+	 * @return object
+	 */
+	public function get_sql_object() {
+		$obj = new stdClass();
+		foreach ($this->get() as $key => $value) {
+			$obj->$key = $value;
+		}
+		return $obj;
 	}
 }
 
