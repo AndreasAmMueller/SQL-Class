@@ -17,7 +17,7 @@ require_once __DIR__.'/SQLDataReader.class.php';
  * @copyright  (c) 2015 Andreas Mueller
  * @license    MIT - http://am-wd.de/index.php?p=about#license
  * @link       https://bitbucket.org/BlackyPanther/sql-class
- * @version    v1.0-20151216 | stable
+ * @version    v1.0-20151220 | stable
  */
 class SQLCommand {
 
@@ -35,19 +35,19 @@ class SQLCommand {
 	 * @var string
 	 */
 	private $query;
-	
+
 	/**
 	 * Query with replaced placeholders
 	 * @var string
 	 */
 	private $queryParsed;
-	
+
 	/**
 	 * associative array with parameter names and their values
 	 * @var mixed[]
 	 */
 	private $params;
-	
+
 	/**
 	 * associative array with parameter names and thier datatype
 	 * @var string[]
@@ -62,7 +62,7 @@ class SQLCommand {
 	 *
 	 * @param string $query query to execute with possible placeholders
 	 * @param SQL $conn connection to database
-	 * 
+	 *
 	 * @return SQLCommand
 	 */
 	function __construct($query, $conn) {
@@ -86,26 +86,26 @@ class SQLCommand {
 	// ===========================================================================
 	/**
 	 * add a parameter
-	 * 
+	 *
 	 * names of parameters have to start with an @ in the query
 	 * e.g. INSERT INTO table (id, name) VALUES(@obj_id, @obj_name);
-	 * 
+	 *
 	 * The function call will be:
 	 * $cmd->add_parameter('obj_id', 1);
 	 * $cmd->add_parameter('obj_name', 'Test');
-	 * 
+	 *
 	 * arrays and objects will saved json encoded.
 	 * except for DateTime, this will be parsed and stored correctly.
-	 * 
+	 *
 	 * @param string $name name of parameter
 	 * @param mixed $value value of parameter
-	 * 
+	 *
 	 * @return void
 	 */
 	public function add_parameter($name, $value) {
 		// i = integer, d = double, s = string, b = blob
 		$type = gettype($value);
-		
+
 		switch ($type) {
 			case 'boolean':
 			case 'integer':
@@ -119,7 +119,7 @@ class SQLCommand {
 				break;
 			case 'string':
 				$this->paramTypes[$name] = 's';
-				$this->params[$name] = "'".$this->conn->real_escape_string(strval($value))."'";
+				$this->params[$name] = "'".self::escape_string(strval($value))."'";
 				break;
 			case 'array':
 				$this->add_parameter($name, strval(json_encode($value)));
@@ -138,7 +138,7 @@ class SQLCommand {
 			default:
 				// ignore
 		}
-		
+
 		$this->queryParsed = '';
 	}
 
@@ -146,27 +146,27 @@ class SQLCommand {
 	// ===========================================================================
 	/**
 	 * delete perviously added parameter
-	 * 
+	 *
 	 * @param string $name name of parameter
 	 * @return bool
 	 */
 	public function delete_parameter($name) {
 		$this->queryParsed = '';
-		
+
 		if (array_key_exists($name, $this->params)) {
 			unset($this->params[$name]);
 			unset($this->paramTypes[$name]);
-			
+
 			return !isset($this->params[$name]);
 		}
-		
+
 		$trace = debug_backtrace();
 		trigger_error('Undefined key for delete_parameter(): '
 		              .$name.' in '
 		              .$trace[0]['file'].' at line '
 		              .$trace[0]['line']
 		, E_USER_NOTICE);
-		
+
 		return false;
 	}
 
@@ -189,14 +189,14 @@ class SQLCommand {
 		$this->parse_query();
 		if (empty($this->queryParsed))
 			return true;
-		
+
 		$close = $this->conn->status() == 'closed';
-		
+
 		$this->conn->open();
 		$this->conn->query($this->queryParsed);
-		
+
 		$ret = empty($this->conn->error());
-		
+
 		if ($close)
 			$this->conn->close();
 
@@ -205,28 +205,28 @@ class SQLCommand {
 
 	/**
 	 * execute query and return all data in a reader
-	 * 
+	 *
 	 * @return SQLDataReader
 	 */
 	public function execute_reader() {
 		$this->parse_query();
 		if (empty($this->queryParsed))
 			return new SQLDataReader();
-		
+
 		$close = $this->conn->status() == 'closed';
-		
+
 		$this->conn->open();
 		$res = $this->conn->query($this->queryParsed);
-		
+
 		$data = array();
 		while ($row = $this->conn->fetch_array($res)) {
 			$data[] = $row;
 		}
-		
+
 		// SQLite causes 'unknown error' after successful fetch of all data.
 		// Don't have a clue why...
 		$ret = empty($this->conn->error()) || $this->conn->error() == 'unknown error';
-		
+
 		if ($close)
 			$this->conn->close();
 
@@ -235,10 +235,10 @@ class SQLCommand {
 
 	// --- helpers
 	// ===========================================================================
-	
+
 	/**
 	 * parse query and replace placeholders
-	 * 
+	 *
 	 * @return void
 	 */
 	private function parse_query() {
@@ -249,6 +249,27 @@ class SQLCommand {
 		foreach ($this->params as $key => $value) {
 			$this->queryParsed = str_replace('@'.$key, $value, $this->queryParsed);
 		}
+	}
+
+	/**
+	 * escapes special chars in a string to prevent SQL injections
+	 *
+	 * @param  string $string string to escape
+	 *
+	 * @return string escaped string
+	 */
+	private static function escape_string($string) {
+		if (is_array($string))
+			return array_map(__METHOD__, $string);
+
+		if (!empty($string) && is_string($string)) {
+			$search  = array(  '\\',  "\0",  "\n",  "\r",   "'",   '"', "\x1a");
+			$replace = array('\\\\', '\\0', '\\n', '\\r', "\\'", '\\"', '\\Z');
+
+			return str_replace($search, $replace, $string);
+		}
+
+		return $string;
 	}
 
 }
