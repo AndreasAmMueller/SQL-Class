@@ -119,7 +119,7 @@ class SQLCommand {
 				break;
 			case 'string':
 				$this->paramTypes[$name] = 's';
-				$this->params[$name] = "'".self::escape_string(strval($value))."'";
+				$this->params[$name] = "'".strval($value)."'";
 				break;
 			case 'array':
 				$this->add_parameter($name, strval(json_encode($value)));
@@ -245,31 +245,17 @@ class SQLCommand {
 		if (empty($this->query))
 			return;
 
+		$close = $this->conn->status() == 'closed';
+		$this->conn->open();
+
 		$this->queryParsed = $this->query;
 		foreach ($this->params as $key => $value) {
-			$this->queryParsed = str_replace('@'.$key, $value, $this->queryParsed);
-		}
-	}
-
-	/**
-	 * escapes special chars in a string to prevent SQL injections
-	 *
-	 * @param  string $string string to escape
-	 *
-	 * @return string escaped string
-	 */
-	private static function escape_string($string) {
-		if (is_array($string))
-			return array_map(__METHOD__, $string);
-
-		if (!empty($string) && is_string($string)) {
-			$search  = array(  '\\',  "\0",  "\n",  "\r",   "'",   '"', "\x1a");
-			$replace = array('\\\\', '\\0', '\\n', '\\r', "\\'", '\\"', '\\Z');
-
-			return str_replace($search, $replace, $string);
+			$val = $this->conn->escape($value);
+			$this->queryParsed = str_replace('@'.$key, $val, $this->queryParsed);
 		}
 
-		return $string;
+		if ($close)
+			$this->conn->close();
 	}
 
 }
