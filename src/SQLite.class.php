@@ -9,7 +9,8 @@
 namespace AMWD\SQL;
 
 // load base class with infos
-if (!class_exists('SQL')) {
+if (!class_exists('AMWD\SQL\SQL'))
+{
 	define('SQLOPT_CLASS_LOADED', true);
 	require_once __DIR__.'/SQL.class.php';
 }
@@ -19,74 +20,82 @@ if (!class_exists('SQL')) {
  *
  * @package    SQL
  * @author     Andreas Mueller <webmaster@am-wd.de>
- * @copyright  (c) 2015 Andreas Mueller
+ * @copyright  (c) 2015-2016 Andreas Mueller
  * @license    MIT - http://am-wd.de/index.php?p=about#license
  * @link       https://bitbucket.org/BlackyPanther/sql-class
- * @version    v1.3-20160123 | stable
+ * @version    v1.3-20160309 | stable
  */
-class SQLite extends SQL {
+class SQLite extends SQL
+{
 	/**
-	 * Initialize a new instance of SQLite Connection
+	 * Initializes a new instance of a SQLite connection.
 	 *
-	 * @param string $path path to db file
-	 * @param string $password database users password
+	 * @param string $path
+	 *   The path to db file (absolute path prefered).
 	 *
-	 * @return SQLite
+	 * @throws \RuntimeException
+	 *   If the driver is not available.
 	 */
-	function __construct($path, $password = '') {
-		if (!class_exists('SQLite3'))
-			throw new \RuntimeException('SQLite3 Class not found. Details at http://php.net/manual/de/book.sqlite3.php');
+	function __construct($path)
+	{
+		if (!in_array('sqlite', \PDO::getAvailableDrivers()))
+			throw new \RuntimeException("SQLite3 driver not found. Please install SQLite support for PHP (e.g. php-sqlite)");
 
 		parent::__construct();
 
-		$this->path     = $path;
-		$this->password = $password;
+		$this->path       = $path;
+		$this->persistent = true;
 	}
 
 	/**
-	 * return version info of connection driver
+	 * Gets the version of the database client (driver).
+	 *
 	 * @return string
+	 *   The driver and its version number.
 	 */
-	public function driver_version() {
-		$v = \SQLite3::version();
-		return $v['versionString'];
+	public function driver_version()
+	{
+		return 'SQLite '.$this->conn->getAttribute(\PDO::ATTR_CLIENT_VERSION);
 	}
 
 	/**
-	 * function to establish a database connection
+	 * Opens the connection to the database.
 	 *
 	 * @return bool
-	 * @throws \RuntimeException if something went wrong establishing the connection
+	 *   true on a successful connection otherwise false and the error message is set.
 	 */
-	public function open() {
-		$conn = new \SQLite3(
-			$this->path,
-			SQLITE3_OPEN_READWRITE | SQLITE3_OPEN_CREATE,
-			$this->password
-		);
+	public function open()
+	{
+		try
+		{
+			$conn = new \PDO('sqlite:'.$this->path);
+			$conn->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+			$conn->setAttribute(\PDO::ATTR_PERSISTENT, $this->persistent);
 
-		if ($conn->lastErrorCode())
-			throw new \RuntimeException('Failed to connect: #'.$conn->lastErrorCode().' | '.$conn->lastErrorMsg());
+			$this->conn = $conn;
+			$this->status = 'open';
 
-		$this->conn = $conn;
-		$this->status = 'open';
+			return true;
+		}
+		catch (\PDOException $ex)
+		{
+			$this->error = $ex->getMessage();
+			$this->status = 'broken';
 
-		return true;
+			return false;
+		}
 	}
 
 	/**
-	 * returns message of last raised error
+	 * Gets the correct function with all elements concatenated.
+	 *
+	 * @param mixed[] $elements
+	 *   An array list of elements to concatenate.
+	 *
 	 * @return string
 	 */
-	public function error() {
-		return $this->conn->lastErrorMsg();
-	}
-
-	/**
-	 * returns the properly concatenated elements as the DB supports it.
-	 * @return string
-	 */
-	public function concat($elements = array()) {
+	public static function concat($elements)
+	{
 		if (count($elements) == 0)
 			return '';
 
@@ -94,80 +103,21 @@ class SQLite extends SQL {
 	}
 
 	/**
-	 * returns the properly escaped string for this DB type.
+	 * Creates a dump to reimport.
+	 *
+	 * @param string|string[] $part (optional)
+	 *   String or string array with structure, data or structure,data.
+	 * @param string|string[] $tables
+	 *   String or string array with tablenames to dump.
+	 *
 	 * @return string
 	 */
-	public function escape($string) {
-		reuturn \SQLite3::escapeString($string);
-	}
-
-	/**
-	 * returns all results as associative array
-	 * @param \mysqli_result $result result of last executed query
-	 * @return mixed[]
-	 */
-	public function fetch_array($result) {
-		return $result->fetchArray();
-	}
-
-	/**
-	 * returns all results as object
-	 * @param \mysqli_result $result result of last executed query
-	 * @return mixed
-	 */
-	public function fetch_object($result) {
-		$array = $result->fetchArray();
-		if (empty($array))
-				return NULL;
-
-		$res = new \stdClass();
-		foreach ($array as $key => $val)
-				$res->$key = $val;
-
-		return $res;
-	}
-
-	/**
-	 * returns number of rows in current result
-	 * @param \mysqli_result $result result of last executed query
-	 * @return int
-	 */
-	public function num_rows($result) {
-		$count = 0;
-		while ($row = $this->fetch_object($result))
-			$count++;
-
-		return $count;
-	}
-
-	/**
-	 * returns unique id of last inserted row
-	 * @return int
-	 */
-	public function insert_id() {
-		return $this->conn->lastInsertRowID();
-	}
-
-	/**
-	 * returns number of rows affected by last statement
-	 * @return int
-	 */
-	public function affected_rows() {
-		return $this->conn->changes();
-	}
-
-	/**
-	 * create an complete SQL dump from (selected) tables
-	 *
-	 * @param mixed $part string or string-array with structure, data or structure,data
-	 * @param mixed $tables string or string-array with tablenames for dump
-	 *
-	 * @return string with complete dump
-	 */
-	public function get_dump($part = self::SQL_DB_STRUCTUREANDDATA, $tables = '') {
+	public function get_dump($part = SQLOPT_DB_STRUCTUREANDDATA, $tables = '')
+	{
 		$close = false;
 
-		if ($this->status == 'closed') {
+		if ($this->status == 'closed')
+		{
 			$this->open();
 			$close = true;
 		}
@@ -175,26 +125,29 @@ class SQLite extends SQL {
 		if (!is_array($part))
 			$part = explode(',', $part);
 
-		if (!is_array($tables)) {
+		if (!is_array($tables))
+		{
 			$tables = trim($tables);
 
 			$tmp = empty($tables) ? array() : explode(',', $tables);
 			$tables = array();
 
-			foreach ($tmp as $tbl) {
+			foreach ($tmp as $tbl)
+			{
 				$tbl = trim($tbl);
 				if (!empty($tbl))
 					$tables[] = $tbl;
 			}
 		}
 
-		if (count($tables) == 0) {
+		if (count($tables) == 0)
+		{
 			$tables = array();
 			$res = $this->query("SELECT name FROM sqlite_master WHERE type = 'table'");
-			while ($row = $this->fetch_array($res)) {
-				if ($row['name'] != 'sqlite_sequence') {
+			while ($row = $this->fetch_array($res))
+			{
+				if ($row['name'] != 'sqlite_sequence')
 					$tables[] = $row['name'];
-				}
 			}
 		}
 
@@ -215,11 +168,12 @@ class SQLite extends SQL {
 		$file[] = "";
 		$file[] = "PRAGMA foreign_keys = false;";
 
-		foreach ($tables as $t) {
-			if (in_array(self::SQL_DB_STRUCTURE, $part))
+		foreach ($tables as $t)
+		{
+			if (in_array(SQLOPT_DB_STRUCTURE, $part))
 					$file[] = $this->get_structure($t);
 
-			if (in_array(self::SQL_DB_DATA, $part))
+			if (in_array(SQLOPT_DB_DATA, $part))
 					$file[] = $this->get_data($t);
 		}
 
@@ -234,12 +188,16 @@ class SQLite extends SQL {
 	}
 
 	/**
-	 * function returning SQL structure of table
+	 * Gets the structure of a table.
 	 *
-	 * @param string $table name of table to get structure for
+	 * @param string $table
+	 *   The name of the table.
+	 *
 	 * @return string
+	 *   The table's structure.
 	 */
-	protected function get_structure($table) {
+	protected function get_structure($table)
+	{
 		$file = array();
 		$file[] = '';
 		$file[] = '--';
@@ -248,7 +206,8 @@ class SQLite extends SQL {
 		$file[] = 'DROP TABLE IF EXISTS `'.$table.'`;';
 
 		$res = $this->query("SELECT sql FROM sqlite_master WHERE name = '".$table."'");
-		while ($row = $this->fetch_object($res)) {
+		while ($row = $this->fetch_object($res))
+		{
 			$file[] = $row->sql.';';
 		}
 

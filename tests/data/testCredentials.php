@@ -1,9 +1,9 @@
 <?php
 
-$mysql['host'] = 'localhost';
+$mysql['host'] = '127.0.0.1';
 $mysql['port'] = 3306;
-$mysql['user'] = 'gitlab-runner';
-$mysql['pass'] = 'runner';
-$mysql['base'] = 'gitlab-runner';
+$mysql['user'] = 'test';
+$mysql['pass'] = '7357';
+$mysql['base'] = 'test';
 
 ?>

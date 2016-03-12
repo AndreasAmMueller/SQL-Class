@@ -9,8 +9,6 @@
 namespace AMWD\SQL;
 require_once __DIR__.'/SQL.class.php';
 
-die('Not implemented yet');
-
 /**
  * Representing specific implementation for PostgreSQL
  *
@@ -19,85 +17,104 @@ die('Not implemented yet');
  * @copyright  (c) 2016 Andreas Mueller
  * @license    MIT - http://am-wd.de/index.php?p=about#license
  * @link       https://bitbucket.org/BlackyPanther/sql-class
- * @version    v1.3-20160116 | stable
+ * @version    v1.3-20160309 | stable
  */
-class PostgreSQL extends SQL {
-	/**
-	 * Initializes a new instance of PostgreSQL Connection
-	 *
-	 * @return PostgreSQL
-	 */
-	function __construct($conn_params) {
-		if (!function_exists('pg_connect'))
-			throw new \RuntimeException('PostgreSQL extension not found. Details at http://php.net/manual/de/book.pgsql.php');
+class PostgreSQL extends SQL
+{
 
-		if (!is_array($conn_params) || count($conn_params) == 0 || !isset($conn_params['dbname']))
-			throw new \ArgumentException('$conn_params at least need the parameter \'dbname\' to be valid');
+	/**
+	 * Initializes a new instance of a PostgreSQL connection.
+	 *
+	 * @param string $user
+	 *   The database user.
+	 * @param string $password
+	 *   The database users password.
+	 * @param string $database (optional)
+	 *   The name of the database. On null all statements need a `db`.`table`.
+	 * @param int $port (optional)
+	 *   The portnumber for the tcp connection. (Sockets currently not supported)
+	 * @param string $hostname (optional)
+	 *   The hostname or ip address of the MySQL server.
+	 *
+	 * @throws \RuntimeException
+	 *   If the driver is not available.
+	 */
+	function __construct($user, $password, $database = null, $port = 5432, $hostname = '127.0.0.1')
+	{
+		if (!in_array('pgsql', \PDO::getAvailableDrivers()))
+			throw new \RuntimeException("PostgreSQL driver not found. Please install PostgreSQL support for PHP (e.g. php-pgsql)");
 
 		parent::__construct();
 
-		$this->connection_params = $conn_params;
-		$this->encoding = 'UTF8';
+		$this->user     = $user;
+		$this->password = $password;
+		$this->database = $database;
+		$this->port     = $port;
+		$this->hostname = $hostname;
+		$this->encoding = 'utf8';
 	}
 
-	/**
-	 * return version info of connection driver
+		/**
+	 * Gets the version of the database client (driver).
+	 *
 	 * @return string
+	 *   The driver and its version number.
 	 */
-	public function driver_version() {
-		$v = pg_version($this->conn);
-		return $v['client'];
+	public function driver_version()
+	{
+		return 'PostgreSQL '.$this->conn->getAttribute(\PDO::ATTR_CLIENT_VERSION);
 	}
 
 	/**
-	 * function to establish a database connection
+	 * Opens the connection to the database.
 	 *
 	 * @return bool
-	 * @throws \RuntimeException if something went wrong establishing the connection
+	 *   true on a successful connection otherwise false and the error message is set.
 	 */
-	public function open() {
-		$allowed_params = array('host', 'hostaddr', 'port', 'dbname', 'user', 'password', 'connect_timeout', 'sslmode');
+	public function open()
+	{
+		$conString = 'pgsql';
+		$conString.= ':host='.$this->hostname;
+		$conString.= ';port='.$this->port;
+		$conString.= ';options=\'--client_encoding="'.$this->encoding.'"\'';
 
-		$params = array();
+		if ($this->database != null)
+			$conString.= ';dbname='.$this->database;
 
-		foreach ($this->connection_params as $param => $value) {
-			if (in_array($param, $allowed_params))
-				$params[] = $param.'='.$value;
+		try
+		{
+			$conn = new \PDO(
+				$conString,
+				$this->user,
+				$this->password
+			);
+			$conn->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+			$conn->setAttribute(\PDO::ATTR_PERSISTENT, true);
+
+			$this->conn = $conn;
+			$this->status = 'open';
+
+			return true;
 		}
+		catch (\PDOException $ex)
+		{
+			$this->error = $ex->getMessage();
+			$this->status = 'broken';
 
-		$connection_string = implode(' ', $params);
-
-		$conn = pg_connect($connection_string." options='--client_encoding=".$this->encoding."'");
-
-		if ($conn === false)
-			throw new \RuntimeException('Failed to connect: '.pg_last_error());
-
-		$this->conn = $conn;
-		$this->status = 'open';
-
-		return true;
+			return false;
+		}
 	}
 
 	/**
-	 * function to close previously established connection
-	 * @return bool true on successful close else false
-	 */
-	public function close() {
-		if ($this->conn != null || $this->conn != false) {
-			$ret = pg_close($this->conn);
-			$this->conn = null;
-			$this->status = 'closed';
-			return $ret;
-		}
-
-		return true;
-	}
-
-	/**
-	 * returns the properly concatenated elements as the DB supports it.
+	 * Gets the correct function with all elements concatenated.
+	 *
+	 * @param mixed[] $elements
+	 *   An array list of elements to concatenate.
+	 *
 	 * @return string
 	 */
-	public function concat($elements = array()) {
+	public function concat($elements)
+	{
 		if (count($elements) == 0)
 			return '';
 
@@ -105,177 +122,113 @@ class PostgreSQL extends SQL {
 	}
 
 	/**
-	 * returns the properly escaped string for this DB type.
+	 * Creates a dump to reimport.
+	 *
+	 * @param string|string[] $part (optional)
+	 *   String or string array with structure, data or structure,data.
+	 * @param string|string[] $tables
+	 *   String or string array with tablenames to dump.
+	 *
 	 * @return string
 	 */
-	public function escape($string) {
-		return pg_escape_string($this->conn, $string);
-	}
-
-	/**
-	 * execute a simple querry directly
-	 * @param  string  $query  Statement for request
-	 * @return ressource
-	 */
-	public function query($query) {
-		return pg_query($this->conn, $query);
-	}
-
-	/**
-	 * returns message of last raised error
-	 * @return string
-	 */
-	public function error() {
-		return pg_last_error($this->conn);
-	}
-
-	/**
-	 * returns all results as associative array
-	 * @param  resource $result result of last executed query
-	 * @return mixed[]
-	 */
-	public function fetch_array($result) {
-		return pg_fetch_array($result);
-	}
-
-	/**
-	 * returns all results as object
-	 * @param  resource $result result of last executed query
-	 * @return mixed
-	 */
-	public function fetch_object($result) {
-		return pg_fetch_object($result);
-	}
-
-	/**
-	 * returns number of rows in current result
-	 * @param  resource $result result of last executed query
-	 * @return int
-	 */
-	public function num_rows($result) {
-		return pg_num_rows($this->conn, $result);
-	}
-
-	/**
-	 * returns unique id of last inserted row
-	 * @param  resource $result result of last executed query
-	 * @return int
-	 */
-	public function insert_id($result) {
-		return pg_last_oid($result);
-	}
-
-	/**
-	 * returns number of rows affected by last statement
-	 * @param  resource $result result of last executed query
-	 * @return int
-	 */
-	public function affected_rows($result) {
-		return pg_affected_rows($result);
-	}
-
-	/**
-	 * create an complete SQL dump from (selected) tables
-	 *
-	 * @param mixed $part string or string-array with structure, data or structure,data
-	 * @param mixed $tables string or string-array with tablenames for dump
-	 *
-	 * @return string with complete dump
-	 */
-	public function get_dump($part = self::SQL_DB_STRUCTUREANDDATA, $tables = '') {
+	public function get_dump($part = SQLOPT_DB_STRUCTUREANDDATA, $tables = '') {
 		throw new \Exception('Not Implemented yet');
+	}
 
+	/**
+	 * Gets the structure of a table.
+	 *
+	 * @param string $table
+	 *   The name of the table.
+	 *
+	 * @return string
+	 *   The table's structure.
+	 */
+	protected function get_structure($table) {
+		$schema = 'public';
 
+		$query = "WITH list AS (
+	SELECT
+		  n.nspname as schema
+		, c.relname as table
+		, a.attname AS name
+		, a.attnotnull AS notnull
+		, pg_catalog.format_type(a.atttypid, a.atttypmod) AS type
+		, CASE
+		  	WHEN p.contype = 'p' THEN 't'
+		  	ELSE 'f'
+		  END AS primarykey
+		, CASE
+		  	WHEN p.contype = 'u' THEN 't'
+		  	ELSE 'f'
+		  END AS uniquekey
+		, CASE
+		  	WHEN p.contype = 'f' THEN g.relname
+		  END AS foreignkey
+		, CASE
+		  	WHEN p.contype = 'f' THEN p.confkey
+		  END AS foreignkey_fieldnum
+		, CASE
+		  	WHEN a.atthasdef = 't' THEN d.adsrc
+		  END AS default
+	FROM
+		pg_attribute a
+	JOIN
+		pg_class c ON c.oid = a.attrelid
+	JOIN
+		pg_type t ON t.oid = a.atttypid
+	LEFT JOIN
+		pg_attrdef d ON d.adrelid = c.oid AND d.adnum = a.attnum
+	LEFT JOIN
+		pg_namespace n ON n.oid = c.relnamespace
+	LEFT JOIN
+		pg_constraint p ON p.conrelid = c.oid AND a.attnum = ANY(p.conkey)
+	LEFT JOIN
+		pg_class AS g ON p.confrelid = g.oid
+WHERE
+	c.relkind = 'r'::char
+		AND n.nspname = '".$schema."'
+		AND c.relname = '".$table."'
+		AND a.attnum > 0
+ORDER BY
+	a.attnum
+)
+SELECT
+	  name
+	, \"notnull\"
+	, type
+	, primarykey
+	, uniquekey
+	, CASE
+	  	WHEN foreignkey IS NOT NULL THEN CONCAT(foreignkey, '(', column_name, ')')
+	  END AS foreignkey
+	, \"default\"
+FROM
+	list
+LEFT JOIN
+	information_schema.columns ON schema = table_schema
+		AND foreignkey = table_name
+		AND foreignkey_fieldnum[1] = ordinal_position
+;";
 
-		$close = false;
+		$close = $this->status() == 'closed';
 
-		if ($this->status == 'closed') {
-			$this->open();
-			$close = true;
+		$this->open();
+
+		$stmt = $this->query($query);
+
+		$structure = 'CREATE TABLE "'.$schema.'"."'.$table.'" (';
+
+		while ($row = $this->fetch_object($stmt))
+		{
+			$structure .= '	"'.$row->name.'"'
 		}
 
-		if (!is_array($part))
-			$part = explode(',', $part);
 
-		if (!is_array($tables)) {
-			$tables = trim($tables);
 
-			$tmp = empty($tables) ? array() : explode(',', $tables);
-			$tables = array();
-
-			foreach ($tmp as $tbl) {
-				$tbl = trim($tbl);
-				if (!empty($tbl))
-					$tables[] = $tbl;
-			}
-		}
-
-		if (count($tables) == 0) {
-			$res = $this->query("SHOW TABLES FROM `".$this->database."`");
-
-			while ($row = $this->fetch_array($res)) {
-				$tables[] = $row['Tables_in_'.$this->database];
-			}
-		}
-
-		$file = array();
-
-		$file[] = "-- SQL Dump v".$this->version()." by AM.WD";
-		$file[] = "-- http://am-wd.de";
-		$file[] = "--";
-		$file[] = "-- https://bitbucket.org/BlackyPanther/sql-class";
-		$file[] = "--";
-		$file[] = "-- PHP:       ".phpversion();
-		$file[] = "-- SQL Type:  MySQL";
-		$file[] = "-- Version:   ".$this->driver_version();
-		$file[] = "--";
-		$file[] = "-- Host:      ".$this->hostname.":".$this->port;
-		$file[] = "--";
-		$file[] = "-- Timestamp: ".date('d. F Y H:i:s');
-		$file[] = "";
-		$file[] = "SET FOREIGN_KEY_CHECKS = 0;";
-
-		foreach ($tables as $t) {
-			if (in_array(self::SQL_DB_STRUCTURE, $part))
-					$file[] = $this->get_structure($t);
-
-			if (in_array(self::SQL_DB_DATA, $part))
-					$file[] = $this->get_data($t);
-		}
-
-		$file[] = "";
-		$file[] = "SET FOREIGN_KEY_CHECKS = 1;";
-		$file[] = "";
 
 		if ($close)
 			$this->close();
-
-		return implode(PHP_EOL, $file);
-	}
-
-	/**
-	 * function returning SQL structure of table
-	 *
-	 * @param string $table name of table to get structure for
-	 * @return string
-	 */
-	protected function get_structure($table) {
-		throw new \Exception('Not Implemented yet');
-
-
-		$file = array();
-		$file[] = '';
-		$file[] = '--';
-		$file[] = '-- Table structure for `'.$table.'`';
-		$file[] = '--';
-		$file[] = 'DROP TABLE IF EXISTS `'.$table.'`;';
-
-		$res = $this->query("SHOW CREATE TABLE `".$table."`");
-		while ($row = $this->fetch_array($res)) {
-			$file[] = preg_replace("/AUTO_INCREMENT=(.*) DEFAULT/", "AUTO_INCREMENT=1 DEFAULT", $row['Create Table'].";");
-		}
-
-		return implode(PHP_EOL, $file);
 	}
 }
 

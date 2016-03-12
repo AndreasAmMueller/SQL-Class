@@ -9,7 +9,8 @@
 namespace AMWD\SQL;
 
 // load base class with infos
-if (!class_exists('SQL')) {
+if (!class_exists('AMWD\SQL\SQL'))
+{
 	define('SQLOPT_CLASS_LOADED', true);
 	require_once __DIR__.'/SQL.class.php';
 }
@@ -19,26 +20,34 @@ if (!class_exists('SQL')) {
  *
  * @package    SQL
  * @author     Andreas Mueller <webmaster@am-wd.de>
- * @copyright  (c) 2015 Andreas Mueller
+ * @copyright  (c) 2015-2016 Andreas Mueller
  * @license    MIT - http://am-wd.de/index.php?p=about#license
  * @link       https://bitbucket.org/BlackyPanther/sql-class
- * @version    v1.3-20160123 | stable
+ * @version    v1.3-20160309 | stable
  */
-class MySQL extends SQL {
+class MySQL extends SQL
+{
 	/**
-	 * Initialize a new instance of MySQL Connection
+	 * Initializes a new instance of a MySQL connection.
 	 *
-	 * @param string $user database user
-	 * @param string $password database users password
-	 * @param string $database name of the database
-	 * @param int $port portnumber for tcp connection
-	 * @param string $hostname hostname or ip address of mysql server
+	 * @param string $user
+	 *   The database user.
+	 * @param string $password
+	 *   The database users password.
+	 * @param string $database (optional)
+	 *   The name of the database. On null all statements need a `db`.`table`.
+	 * @param int $port (optional)
+	 *   The portnumber for the tcp connection. (Sockets currently not supported)
+	 * @param string $hostname (optional)
+	 *   The hostname or ip address of the MySQL server.
 	 *
-	 * @return MySQL
+	 * @throws \RuntimeException
+	 *   If the driver is not available.
 	 */
-	function __construct($user, $password, $database, $port = 3306, $hostname = '127.0.0.1') {
-		if (!class_exists('mysqli'))
-			throw new \RuntimeException('MySQLi Class not found. Details at http://php.net/manual/de/book.mysqli.php');
+	function __construct($user, $password, $database = null, $port = 3306, $hostname = '127.0.0.1')
+	{
+		if (!in_array('mysql', \PDO::getAvailableDrivers()))
+			throw new \RuntimeException("MySQL driver not found. Please install MySQL support for PHP (e.g. php-mysql)");
 
 		parent::__construct();
 
@@ -49,65 +58,73 @@ class MySQL extends SQL {
 		$this->hostname = $hostname;
 		$this->encoding = 'utf8';
 		$this->locales  = 'en_US';
+		$this->persistent = true;
 	}
 
 	/**
-	 * return version info of connection driver
+	 * Gets the version of the database client (driver).
+	 *
 	 * @return string
+	 *   The driver and its version number.
 	 */
-	public function driver_version() {
-		return $this->conn->server_info;
+	public function driver_version()
+	{
+		return 'MySQL '.$this->conn->getAttribute(\PDO::ATTR_CLIENT_VERSION);
 	}
 
 	/**
-	 * function to establish a database connection
+	 * Opens the connection to the database.
 	 *
 	 * @return bool
-	 * @throws \RuntimeException if something went wrong establishing the connection
+	 *   true on a successful connection otherwise false and the error message is set.
 	 */
-	public function open() {
-		$conn = new \mysqli(
-			$this->hostname,
-			$this->user,
-			$this->password,
-			$this->database,
-			$this->port
-		);
+	public function open()
+	{
+		$conString = 'mysql';
+		$conString.= ':host='.$this->hostname;
+		$conString.= ';port='.$this->port;
+		$conString.= ';charset='.$this->encoding;
 
-		if ($conn->connect_errno)
-			throw new \RuntimeException('Failed to connect: #'.$conn->connect_errno.' | '.$conn->connect_error);
+		if ($this->database != null)
+			$conString.= ';dbname='.$this->database;
 
-		$this->conn = $conn;
+		try
+		{
+			$conn = new \PDO(
+				$conString,
+				$this->user,
+				$this->password
+			);
+			$conn->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+			$conn->setAttribute(\PDO::ATTR_PERSISTENT, $this->persistent);
 
-		// enforce correct encoding
-		$query = "SET
-    character_set_client     = '".$this->encoding."'
-  , character_set_server     = '".$this->encoding."'
-  , character_set_connection = '".$this->encoding."'
-  , character_set_database   = '".$this->encoding."'
-  , character_set_results    = '".$this->encoding."'
-  , lc_time_names            = '".$this->locales."'
-;";
+			$conn->query("SET lc_time_names = ".$this->locales.";");
 
-		$this->query($query);
-		$this->status = 'open';
+			$this->conn = $conn;
+			$this->status = 'open';
 
-		return true;
+			return true;
+		}
+		catch (\PDOException $ex)
+		{
+			$this->error = $ex->getMessage();
+			$this->status = 'broken';
+
+			return false;
+		}
+
 	}
 
 	/**
-	 * returns message of last raised error
+	 * Gets the correct function with all elements concatenated.
+	 *
+	 * @param mixed[] $elements
+	 *   An array list of elements to concatenate.
+	 *
 	 * @return string
 	 */
-	public function error() {
-		return $this->conn->error;
-	}
-
-	/**
-	 * returns the properly concatenated elements as the DB supports it.
-	 * @return string
-	 */
-	public function concat($elements = array()) {
+	public function concat($elements)
+	{
 		if (count($elements) == 0)
 			return '';
 
@@ -115,73 +132,17 @@ class MySQL extends SQL {
 	}
 
 	/**
-	 * returns the properly escaped string for this DB type.
+	 * Creates a dump to reimport.
+	 *
+	 * @param string|string[] $part (optional)
+	 *   String or string array with structure, data or structure,data.
+	 * @param string|string[] $tables
+	 *   String or string array with tablenames to dump.
+	 *
 	 * @return string
 	 */
-	public function escape($string) {
-		$close = $this->status == 'closed';
-		$this->open();
-
-		$escaped = $this->conn->real_escape_string($string);
-
-		if ($close)
-			$this->close();
-
-		return $escaped;
-	}
-
-	/**
-	 * returns all results as associative array
-	 * @param \mysqli_result $result result of last executed query
-	 * @return mixed[]
-	 */
-	public function fetch_array($result) {
-		return $result->fetch_array();
-	}
-
-	/**
-	 * returns all results as object
-	 * @param \mysqli_result $result result of last executed query
-	 * @return mixed
-	 */
-	public function fetch_object($result) {
-		return $result->fetch_object();
-	}
-
-	/**
-	 * returns number of rows in current result
-	 * @param \mysqli_result $result result of last executed query
-	 * @return int
-	 */
-	public function num_rows($result) {
-		return $result->num_rows;
-	}
-
-	/**
-	 * returns unique id of last inserted row
-	 * @return int
-	 */
-	public function insert_id() {
-		return $this->conn->insert_id;
-	}
-
-	/**
-	 * returns number of rows affected by last statement
-	 * @return int
-	 */
-	public function affected_rows() {
-		return $this->conn->affected_rows;
-	}
-
-	/**
-	 * create an complete SQL dump from (selected) tables
-	 *
-	 * @param mixed $part string or string-array with structure, data or structure,data
-	 * @param mixed $tables string or string-array with tablenames for dump
-	 *
-	 * @return string with complete dump
-	 */
-	public function get_dump($part = self::SQL_DB_STRUCTUREANDDATA, $tables = '') {
+	public function get_dump($part = SQLOPT_DB_STRUCTUREANDDATA, $tables = '')
+	{
 		$close = false;
 
 		if ($this->status == 'closed') {
@@ -226,15 +187,15 @@ class MySQL extends SQL {
 		$file[] = "--";
 		$file[] = "-- Host:      ".$this->hostname.":".$this->port;
 		$file[] = "--";
-		$file[] = "-- Timestamp: ".date('d. F Y H:i:s');
+		$file[] = "-- Timestamp: ".date('Y-m-d H:i:s');
 		$file[] = "";
 		$file[] = "SET FOREIGN_KEY_CHECKS = 0;";
 
 		foreach ($tables as $t) {
-			if (in_array(self::SQL_DB_STRUCTURE, $part))
+			if (in_array(SQLOPT_DB_STRUCTURE, $part))
 					$file[] = $this->get_structure($t);
 
-			if (in_array(self::SQL_DB_DATA, $part))
+			if (in_array(SQLOPT_DB_DATA, $part))
 					$file[] = $this->get_data($t);
 		}
 
@@ -249,12 +210,16 @@ class MySQL extends SQL {
 	}
 
 	/**
-	 * function returning SQL structure of table
+	 * Gets the structure of a table.
 	 *
-	 * @param string $table name of table to get structure for
+	 * @param string $table
+	 *   The name of the table.
+	 *
 	 * @return string
+	 *   The table's structure.
 	 */
-	protected function get_structure($table) {
+	protected function get_structure($table)
+	{
 		$file = array();
 		$file[] = '';
 		$file[] = '--';

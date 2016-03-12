@@ -13,114 +13,129 @@ namespace AMWD\SQL;
  *
  * @package    SQL
  * @author     Andreas Mueller <webmaster@am-wd.de>
- * @copyright  (c) 2015 Andreas Mueller
+ * @copyright  (c) 2015-2016 Andreas Mueller
  * @license    MIT - http://am-wd.de/index.php?p=about#license
  * @link       https://bitbucket.org/BlackyPanther/sql-class
- * @version    v1.0-20151218 | stable
+ * @version    v1.0-20160309 | stable
  */
-class SQLDataReader {
+class SQLDataReader
+{
 
 	/**
-	 * array with all data
+	 * An Array with all fetched data.
 	 * @var mixed[]
 	 */
 	private $data;
-	
+
 	/**
-	 * current position of DataReader
+	 * The current position of the DataReader.
 	 * @var int
 	 */
 	private $pos;
-	
+
 	/**
-	 * initalize new instance of DataReader
-	 * 
-	 * @param mixed[] $data array with data from SQL::fetch_array()
-	 * 
-	 * @return DataReader
+	 * Initializes a new instance of SQLDataReader.
+	 *
+	 * @param mixed[] $data
+	 *   An array with the fetched data from an executed statement.
 	 */
-	function __construct($data = null) {
+	function __construct($data = null)
+	{
 		$this->data = $data;
 		$this->pos = -1;
 	}
-	
+
 	/**
-	 * performs a iterator step
-	 * 
-	 * returns true if reader has new data loaded, else false (end of data)
-	 * 
+	 * Performs a iterator step.
+	 *
 	 * @return bool
+	 *   true if new data have been loaded, otherwise false (end of data).
 	 */
-	public function read() {
+	public function read()
+	{
 		if ($this->data == null)
 			return false;
-		
+
 		$this->pos++;
 		return $this->pos < count($this->data);
 	}
-	
+
 	/**
-	 * get parameter of current data block;
-	 * if parameter name is empty, whole array will be returned.
-	 * 
-	 * @param string $name name of parameter
-	 * 
+	 * Gets the value of a key. of the current data record.
+	 *
+	 * If the name of the key is null (not set), the whole record (assoc. array) is returned.
+	 *
+	 * @param string $name
+	 *   The name of the key.
+	 *
 	 * @return mixed
-	 * @throws \OutOfBoundsException if parameter is requested without valid read_data()
+	 *   The value of the key or null (not found).
+	 *
+	 * @throws \OutOfBoundsException
+	 *   If the parameter is requested without a valid read_data() action.
 	 */
-	public function get($name = '') {
-		if ($this->pos == -1) {
+	public function get($name = null)
+	{
+		if ($this->pos == -1)
+		{
 			$trace = debug_backtrace();
-			trigger_error('Reader not executed at SQLDataReader->get(): '
+			trigger_error('Reader not executed at SQLDataReader::get(): '
 			              .$name.' in '
 			              .$trace[0]['file'].' at line '
 			              .$trace[0]['line']
-			, E_USER_ERROR);
-			
+				, E_USER_ERROR);
+
 			return null;
-		} else if ($this->pos < count($this->data)) {
-			if (array_key_exists($name, $this->data[$this->pos])) {
-				return $this->data[$this->pos][$name];
-			} else if (empty($name)) {
+		}
+		else if ($this->pos < count($this->data))
+		{
+			if ($name == null)
 				return $this->data[$this->pos];
-			}
-			
+			else if (array_key_exists($name, $this->data[$this->pos]))
+				return $this->data[$this->pos][$name];
+
 			$trace = debug_backtrace();
-			trigger_error('Undefined key for SQLDataReader->get(): '
+			trigger_error('Undefined key for SQLDataReader::get(): '
 			              .$name.' in '
 			              .$trace[0]['file'].' at line '
 			              .$trace[0]['line']
-			, E_USER_WARNING);
-			
+				, E_USER_WARNING);
+
 			return null;
-		} else {
+		}
+		else
+		{
 			throw new \OutOfBoundsException("No data available");
 		}
 	}
-	
+
 	/**
-	 * get paramerter of current data block as DateTime
-	 * 
-	 * @param string $name name of paramerter
-	 * 
+	 * Gets the key of the current record as DateTime object.
+	 *
+	 * @param string $name
+	 *   The name of the paramerter.
+	 *
 	 * @return \DateTime
 	 */
 	public function get_DateTime($name) {
 		$value = $this->get($name);
-		
-		if ($value != null) {
+
+		if ($value != null)
+		{
 			$date = date_parse($value);
-			
-			if ($date['error_count'] > 0 || $date['warning_count'] > 0) {
+
+			if ($date['error_count'] > 0 || $date['warning_count'] > 0)
+			{
 				$trace = debug_backtrace();
-				trigger_error('Parsing Error on DataReader.get_DateTime(): '
+				trigger_error('Parsing Error on SQLDataReader::get_DateTime(): '
 				              .$name.' in '
 				              .$trace[0]['file'].' at row '
 				              .$trace[0]['line']
-				, E_USER_WARNING);
+					, E_USER_WARNING);
+
 				return null;
 			}
-			
+
 			$format = array();
 			$format[] = $date['year'];
 			$format[] = '-';
@@ -133,121 +148,142 @@ class SQLDataReader {
 			$format[] = (($date['minute'] < 10) ? '0' : '').$date['minute'];
 			$format[] = ':';
 			$format[] = (($date['second'] < 10) ? '0' : '').$date['second'];
-			
+
 			$str = implode('', $format);
 			$value = \DateTime::createFromFormat('Y-m-d H:i:s', $str);
 		}
-		
+
 		return $value;
 	}
-	
+
 	/**
-	 * get parameter of current data block as string.
-	 * 
-	 * @param string $name name of parameter
-	 * 
+	 * Gets the parameter of current record as string.
+	 *
+	 * @param string $name
+	 *   The name of the parameter.
+	 *
 	 * @return string
 	 */
-	public function get_String($name) {
+	public function get_String($name)
+	{
 		return strval($this->get($name));
 	}
-	
+
 	/**
-	 * get parameter of current data block as integer.
-	 * 
-	 * @param string $name name of parameter
-	 * 
+	 * Gets the parameter of the current record as integer.
+	 *
+	 * @param string $name
+	 *   The name of the parameter.
+	 *
 	 * @return integer
 	 */
-	public function get_Integer($name) {
+	public function get_Integer($name)
+	{
 		return intval($this->get($name));
 	}
-	
+
 	/**
-	 * get parameter of current data block as integer.
-	 * 
-	 * @param  string $name name of parameter
-	 * 
+	 * Gets the parameter of the current record as integer.
+	 *
+	 * @param string $name
+	 *   The name of the parameter.
+	 *
 	 * @return integer
 	 */
-	public function get_Int($name) {
+	public function get_Int($name)
+	{
 		return $this->get_Integer($name);
 	}
-	
+
 	/**
-	 * get parameter of current data block as float.
-	 * 
-	 * @param string $name name of parameter
-	 * 
+	 * Gets the parameter of the current record as float.
+	 *
+	 * @param string $name
+	 *   The name of the parameter.
+	 *
 	 * @return float
 	 */
-	public function get_Float($name) {
+	public function get_Float($name)
+	{
 		return floatval($this->get($name));
 	}
-	
+
 	/**
-	 * get parameter of current data block as double.
-	 * 
-	 * @param string $name name of parameter
-	 * 
-	 * @return double
+	 * Gets the parameter of the current record as float.
+	 *
+	 * The data type double is not present at Php.
+	 *
+	 * @param string $name
+	 *   The name of the parameter.
+	 *
+	 * @return float
 	 */
-	public function get_Double($name) {
+	public function get_Double($name)
+	{
 		return $this->get_Float($name);
 	}
-	
+
 	/**
-	 * get parameter of current data block as boolean.
-	 * 
-	 * @param string $name name of parameter
-	 * 
-	 * @return boolean
+	 * Gets the parameter of the current record as boolean.
+	 *
+	 * @param string $name
+	 *   The name of the parameter.
+	 *
+	 * @return bool
 	 */
-	public function get_Boolean($name) {
+	public function get_Boolean($name)
+	{
 		return $this->get_Int($name) > 0;
 	}
-	
+
 	/**
-	 * get parameter of current data block as array.
-	 * 
-	 * @param string $name name of parameter
-	 * 
-	 * @return mixed[]
+	 * Gets the parameter of the current record as array.
+	 *
+	 * @param string $name
+	 *   The name of the parameter.
+	 *
+	 * @return array
 	 */
-	public function get_Array($name) {
+	public function get_Array($name)
+	{
 		return json_decode($this->get_String($name));
 	}
-	
+
 	/**
-	 * get parameter of current data block as object (what ever its content is).
-	 * 
-	 * @param string $name name of parameter
-	 * 
-	 * @return mixed
-	 */
-	public function get_Object($name) {
-		return json_decode($this->get_String($name));
-	}
-	
-	/**
-	 * get associative array as from the SQL statement
-	 * 
-	 * @return mixed[]
-	 */
-	public function get_sql_array() {
-		return $this->get();
-	}
-	
-	/**
-	 * get object as from the SQL statement
-	 * 
+	 * Gets the parameter of the current record as object.
+	 *
+	 * @param string $name
+	 *   The name of the parameter.
+	 *
 	 * @return object
 	 */
-	public function get_sql_object() {
+	public function get_Object($name)
+	{
+		return json_decode($this->get_String($name));
+	}
+
+	/**
+	 * Gets the current record as associative array.
+	 *
+	 * @return mixed[]
+	 */
+	public function get_sql_array()
+	{
+		return $this->get();
+	}
+
+	/**
+	 * Gets the current record as object.
+	 *
+	 * @return object
+	 */
+	public function get_sql_object()
+	{
 		$obj = new stdClass();
-		foreach ($this->get() as $key => $value) {
+
+		foreach ($this->get() as $key => $value)
 			$obj->$key = $value;
-		}
+
 		return $obj;
 	}
 }

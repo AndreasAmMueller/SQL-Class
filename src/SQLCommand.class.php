@@ -14,146 +14,146 @@ require_once __DIR__.'/SQLDataReader.class.php';
  *
  * @package    SQL
  * @author     Andreas Mueller <webmaster@am-wd.de>
- * @copyright  (c) 2015 Andreas Mueller
+ * @copyright  (c) 2015-2016 Andreas Mueller
  * @license    MIT - http://am-wd.de/index.php?p=about#license
  * @link       https://bitbucket.org/BlackyPanther/sql-class
- * @version    v1.0-20151220 | stable
+ * @version    v1.1-20160309 | stable
  */
-class SQLCommand {
+class SQLCommand
+{
 
 	// --- properties
 	// ===========================================================================
 
 	/**
-	 * object of database connection
+	 * The database connection.
 	 * @var SQL
 	 */
 	private $conn;
 
 	/**
-	 * Query with placeholders
-	 * @var string
+	 * The statement to handle with.
+	 * @var \PDOStatement
 	 */
-	private $query;
+	private $statement;
 
 	/**
-	 * Query with replaced placeholders
-	 * @var string
-	 */
-	private $queryParsed;
-
-	/**
-	 * associative array with parameter names and their values
+	 * The parameters to bind to the statement.
 	 * @var mixed[]
 	 */
 	private $params;
 
 	/**
-	 * associative array with parameter names and thier datatype
-	 * @var string[]
+	 * The datatypes of the parameters to bind to the statement.
+	 * @var int[]
 	 */
 	private $paramTypes;
 
 	// --- basic stuff
 	// ===========================================================================
 
-		/**
-	 * initialize new base object with property array.
+	/**
+	 * Initializes a new instance of SQLCommand.
 	 *
-	 * @param string $query query to execute with possible placeholders
-	 * @param SQL $conn connection to database
+	 * If you want to bind parameters, make sure the parameters look like
+	 * in this example statement:
+	 * "INSERT INTO table (lastname, firstname, birthday) VALUES(:last_name, :first_name, :birth_day);"
 	 *
-	 * @return SQLCommand
+	 * @param string $query
+	 *   The query to execute.
+	 * @param SQL $conn
+	 *   The Sql connection.
 	 */
-	function __construct($query, $conn) {
-		$this->query = trim($query);
-		$this->queryParsed = '';
-		$this->conn = $conn;
+	function __construct($query, $conn)
+	{
+		$query = trim($query);
 
+		$this->conn       = $conn;
+		$this->statement  = $conn->prepare($query);
 		$this->params     = array();
 		$this->paramTypes = array();
 	}
 
-	/**
-	 * do your rest before object is destroyed
-	 * @return void
-	 */
-	function __destruct() {
-		// nothing to do yet
-	}
-
 	// --- adding parameter
 	// ===========================================================================
+
 	/**
-	 * add a parameter
+	 * Adds a parameter to the internal list.
 	 *
-	 * names of parameters have to start with an @ in the query
-	 * e.g. INSERT INTO table (id, name) VALUES(@obj_id, @obj_name);
+	 * The name of the parameter is set _without_ the colon at the beginning.
+	 * Example to the statement at the constructor:
+	 * add_parameter('last_name', 'Smith');
+	 * add_parameter('first_name', 'John');
 	 *
-	 * The function call will be:
-	 * $cmd->add_parameter('obj_id', 1);
-	 * $cmd->add_parameter('obj_name', 'Test');
+	 * A DateTime object is parsed to yyyy-mm-dd hh:mm:ss.
+	 * All other arrays and objects are encoded via json_encode() to a string.
+	 * The methods SQLDataReader::get_* decode the string correctly.
 	 *
-	 * arrays and objects will saved json encoded.
-	 * except for DateTime, this will be parsed and stored correctly.
-	 *
-	 * @param string $name name of parameter
-	 * @param mixed $value value of parameter
+	 * @param string $name
+	 *   The name of the parameter.
+	 * @param mixed $value
+	 *   The value of the parameter.
 	 *
 	 * @return void
 	 */
-	public function add_parameter($name, $value) {
-		// i = integer, d = double, s = string, b = blob
-		$type = gettype($value);
-
-		switch ($type) {
+	public function add_parameter($name, $value)
+	{
+		switch (gettype($value))
+		{
 			case 'boolean':
+				$this->paramTypes[$name] = \PDO::PARAM_BOOL;
+				$this->params[$name] = boolval($value);
+				break;
+			case 'NULL':
+				// in some cases NULL breaks => PARAM_INT will succeed
+				$this->paramTypes[$name] = \PDO::PARAM_NULL;
+				//$this->paramTypes[$name] = \PDO::PARAM_INT;
+				$this->params[$name] = null;
+				break;
 			case 'integer':
-				$this->paramTypes[$name] = 'i';
+				$this->paramTypes[$name] = \PDO::PARAM_INT;
 				$this->params[$name] = intval($value);
 				break;
 			case 'double':
 			case 'float':
-				$this->paramTypes[$name] = 'd';
+				$this->paramTypes[$name] = \PDO::PARAM_STR;
 				$this->params[$name] = floatval($value);
 				break;
 			case 'string':
-				$this->paramTypes[$name] = 's';
-				$this->params[$name] = "'".strval($value)."'";
+				$this->paramTypes[$name] = \PDO::PARA;_STR;
+				//$this->params[$name] = $this->conn->escape(strval($value));
+				$this->params[$name] = strval($value);
 				break;
 			case 'array':
 				$this->add_parameter($name, strval(json_encode($value)));
 				break;
 			case 'object':
-				if ($value instanceof \DateTime) {
+				if ($value instanceof \DateTime)
 					$this->add_parameter($name, strval($value->format('Y-m-d H:i:s')));
-				} else {
+				else
 					$this->add_parameter($name, strval(json_encode($value)));
-				}
-				break;
-			case 'NULL':
-				$this->paramTypes[$name] = 'b';
-				$this->params[$name] = 'NULL';
 				break;
 			default:
 				// ignore
 		}
-
-		$this->queryParsed = '';
 	}
 
 	// --- removing parameter
 	// ===========================================================================
-	/**
-	 * delete perviously added parameter
-	 *
-	 * @param string $name name of parameter
-	 * @return bool
-	 */
-	public function delete_parameter($name) {
-		$this->queryParsed = '';
 
-		if (array_key_exists($name, $this->params)) {
+	/**
+	 * Deletes a previously added parameter from the list.
+	 *
+	 * @param string $name
+	 *   The name of the parameter.
+	 *
+	 * @return bool
+	 *   true on success otherwise false and a notice is triggered.
+	 */
+	public function delete_parameter($name)
+	{
+		if (array_key_exists($name, $this->params))
+		{
 			unset($this->params[$name]);
 			unset($this->paramTypes[$name]);
 
@@ -165,37 +165,36 @@ class SQLCommand {
 		              .$name.' in '
 		              .$trace[0]['file'].' at line '
 		              .$trace[0]['line']
-		, E_USER_NOTICE);
+			, E_USER_NOTICE);
 
 		return false;
 	}
 
 	/**
-	 * clear all parameters
+	 * Clears all parameters previously set.
+	 *
 	 * @return void
 	 */
-	public function clear_parameters() {
+	public function clear_parameters()
+	{
 		$this->params = array();
 		$this->paramTypes = array();
-		$this->queryParsed = '';
 	}
 
 	/**
-	 * execute query without response
+	 * Executes the statement with bound parameters.
 	 *
 	 * @return bool
+	 *   true on a successful execution, otherwise false.
 	 */
-	public function execute_non_query() {
-		$this->parse_query();
-		if (empty($this->queryParsed))
-			return true;
+	public function execute_non_query()
+	{
+		$this->bind_params();
 
 		$close = $this->conn->status() == 'closed';
-
 		$this->conn->open();
-		$this->conn->query($this->queryParsed);
 
-		$ret = empty($this->conn->error());
+		$ret = $this->statement->execute();
 
 		if ($close)
 			$this->conn->close();
@@ -204,58 +203,39 @@ class SQLCommand {
 	}
 
 	/**
-	 * execute query and return all data in a reader
+	 * Executes the statement with bound parameters for a SQLDataReader.
 	 *
-	 * @return SQLDataReader
+	 * @return SQLDataReader|bool
+	 *   On success a SQLDataReader is returned otherwise false.
 	 */
-	public function execute_reader() {
-		$this->parse_query();
-		if (empty($this->queryParsed))
-			return new SQLDataReader();
+	public function execute_reader()
+	{
+		$this->bind_params();
 
 		$close = $this->conn->status() == 'closed';
-
 		$this->conn->open();
-		$res = $this->conn->query($this->queryParsed);
 
-		$data = array();
-		while ($row = $this->conn->fetch_array($res)) {
-			$data[] = $row;
-		}
+		if (!$this->statement->execute())
+			return false;
 
-		// SQLite causes 'unknown error' after successful fetch of all data.
-		// Don't have a clue why...
-		$ret = empty($this->conn->error()) || $this->conn->error() == 'unknown error';
-
-		if ($close)
-			$this->conn->close();
-
-		return $ret ? new SQLDataReader($data) : new SQLDataReader();
+		return new SQLDataReader($this->statement->fetchAll(\PDO::FETCH_ASSOC));
 	}
 
 	// --- helpers
 	// ===========================================================================
 
 	/**
-	 * parse query and replace placeholders
+	 * Binds all proviously set parameters to the statement.
 	 *
 	 * @return void
 	 */
-	private function parse_query() {
-		if (empty($this->query))
-			return;
+	private function bind_params()
+	{
+		if (count($this->params) != count($this->paramTypes))
+			throw new \ArgumentException("Something went wrong while adding parameters");
 
-		$close = $this->conn->status() == 'closed';
-		$this->conn->open();
-
-		$this->queryParsed = $this->query;
-		foreach ($this->params as $key => $value) {
-			$val = $this->conn->escape($value);
-			$this->queryParsed = str_replace('@'.$key, $val, $this->queryParsed);
-		}
-
-		if ($close)
-			$this->conn->close();
+		foreach ($this->params as $key => $value)
+			$this->statement->bindValue(':'.$key, $value, $this->paramTypes[$key]);
 	}
 
 }

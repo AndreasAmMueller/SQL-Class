@@ -2,7 +2,7 @@
 
 /**
  * SQLTest.php
- * 
+ *
  * (c) Andreas Mueller <webmaster@am-wd.de>
  */
 namespace AMWD\SQL;
@@ -19,15 +19,19 @@ require_once __DIR__.'/../src/SQL.class.php';
  * @version    v1.0-20150829 | in developement
  */
 class SQLTest extends \PHPUnit_Framework_TestCase {
-	
-	public function testConstructors() {
-		
-		try {
+
+	public function testConstructors()
+	{
+		try
+		{
 			$sql = new SQL();
-		} catch (Exception $ex) {
-			echo $ex->getMessage();
+			$this->fail('Instance of (abstract) base class should not be possible');
 		}
-		
+		catch (\Exception)
+		{
+			// Do nothing => if the code run here, it's working as expected.
+		}
+
 	}
 }
 

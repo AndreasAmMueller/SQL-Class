@@ -8,124 +8,113 @@
 
 namespace AMWD\SQL;
 
-// Options
-define('SQLOPT_DB_STRUCTURE',        SQL::SQL_DB_STRUCTURE);
-define('SQLOPT_DB_DATA',             SQL::SQL_DB_DATA);
-define('SQLOPT_DB_STRUCTUREANDDATA', SQL::SQL_DB_STRUCTUREANDDATA);
-define('SQLOPT_RETURN_ERROR',        SQL::SQL_RETURN_ERROR);
-define('SQLOPT_RETURN_NO_ERROR',     SQL::SQL_RETURN_NO_ERROR);
+/**
+ * Constant for Sql dump creation. Dump only the structure of the db.
+ * @var string
+ */
+define('SQLOPT_DB_STRUCTURE',        'structure');
+
+/**
+ * Constant for Sql dump creation. Dump only the data of the db.
+ * @var string
+ */
+define('SQLOPT_DB_DATA',             'data');
+
+/**
+ * Constant for Sql dump creation. Dump both, structure and data of the db.
+ * @var string
+ */
+define('SQLOPT_DB_STRUCTUREANDDATA', 'structure,data');
 
 // Load all SQL classes if this class was included
 // Ohterwise load only this class to have all definitions.
-if (!defined(SQLOPT_CLASS_LOADED)) {
+if (!defined('SQLOPT_CLASS_LOADED'))
+{
 	require_once __DIR__.'/MySQL.class.php';
 	require_once __DIR__.'/SQLite.class.php';
-	require_once __DIR__.'/PostgreSQL.class.php';
+	//require_once __DIR__.'/PostgreSQL.class.php';
 }
 
 /**
- * Base-class with all functionality (or at least stubs) needed to access a database
+ * Base-class with all functionality (or at least stubs) needed to access a database.
  *
  * @package    SQL
  * @author     Andreas Mueller <webmaster@am-wd.de>
- * @copyright  (c) 2015 Andreas Mueller
+ * @copyright  (c) 2015-2016 Andreas Mueller
  * @license    MIT - http://am-wd.de/index.php?p=about#license
  * @link       https://bitbucket.org/BlackyPanther/sql-class
- * @version    v1.3-20160123 | stable
+ * @version    v1.3-20160309 | stable
  */
-abstract class SQL {
-
-	// --- constants
-	// ===========================================================================
-
-	/**
-	 * Flag for an SQL dump if only structure should be dumped
-	 * @var string
-	 */
-	const SQL_DB_STRUCTURE = 'structure';
-
-	/**
-	 * Flag for an SQL dump if only data should be dumped
-	 * @var string
-	 */
-	const SQL_DB_DATA = 'data';
-
-	/**
-	 * Flag for an SQL dump if structure and data should be dumped
-	 * @var string
-	 */
-	const SQL_DB_STRUCTUREANDDATA = 'structure,data';
-
-	/**
-	 * Flag for an SQL restore if errors should be returned
-	 * @var bool
-	 */
-	const SQL_RETURN_ERROR = true;
-
-	/**
-	 * Flag for an SQL restore if errors should not be returned
-	 * @var bool
-	 */
-	const SQL_RETURN_NO_ERROR = false;
+abstract class SQL
+{
 
 	// --- class-member
 	// ===========================================================================
 
 	/**
-	 * version of these classes
+	 * Represents the version of these classes.
 	 * @var string
 	 */
 	private $version = "1.3";
 
 	/**
-	 * data array for all properties
-	 * @var array
+	 * An array for all common data slinked to this class.
+	 * @var mixed[]
 	 */
 	protected $data;
 
 	/**
-	 * connection object
-	 * @var mixed
+	 * The database connection itself.
+	 * @var \PDO
 	 */
 	protected $conn;
-	
+
 	/**
-	 * status of Connection
+	 * The status of the database connection.n
 	 * @var string
 	 */
 	protected $status;
+
+	/**
+	 * The last raised error message.
+	 * @var string
+	 */
+	protected $error;
 
 	// --- 'magic' methods
 	// ===========================================================================
 
 	/**
-	 * Initializes new base object with property array.
-	 *
-	 * @return SQL
+	 * Initializes the properties.
 	 */
-	function __construct() {
+	function __construct()
+	{
 		$this->data = array();
 		$this->status = 'closed';
+		$this->error = '';
 	}
 
 	/**
-	 * Do your rest before object is destroyed.
-	 * @return void
+	 * Finalizes an instance of SQL class.
 	 */
-	function __destruct() {
+	function __destruct()
+	{
 		$this->close();
 	}
 
 	/**
-	 * 'magic' get method for all properties
+	 * Gets a value to a key.
 	 *
-	 * @param  string $name name of the property
-	 * @return mixed
+	 * @param  string  $name
+	 *   Name of the key.
+	 *
+	 * @return  mixed
+	 *   Value to the key.
 	 */
-	public function __get($name) {
-		if (array_key_exists($name, $this->data)) {
+	public function __get($name)
+	{
+		if (array_key_exists($name, $this->data))
 			return $this->data[$name];
-		}
 
 		$trace = debug_backtrace();
 		trigger_error('Undefined key for __get(): '
@@ -138,31 +127,44 @@ abstract class SQL {
 	}
 
 	/**
-	 * 'magic' set method for all properties
+	 * Sets a value for a key.
 	 *
-	 * @param  string  $name   name of the property
-	 * @param  mixed   $value  value of the property
-	 * @return void
+	 * @param string $name
+	 *   The name of the key.
+	 * @param mixed $value
+	 *   The value of the key.
+	 *
+	 * return void
 	 */
-	public function __set($name, $value) {
+	public function __set($name, $value)
+	{
 		$this->data[$name] = $value;
 	}
 
 	/**
-	 * 'magic' check if property exists
-	 * @param  string  $name  name of the property
+	 * Gets a value indicating whether the key exists.
+	 *
+	 * @param string $name
+	 *   The name of the key.
+	 *
 	 * @return bool
+	 *   true if the key exists, otherwise false.
 	 */
-	public function __isset($name) {
+	public function __isset($name)
+	{
 		return isset($this->data[$name]);
 	}
 
 	/**
-	 * 'magic' property delete
-	 * @param  string  $name  name of the property
+	 * Deletes (unsets) a key.
+	 *
+	 * @param string $name
+	 *   The name of the key.
+	 *
 	 * @return void
 	 */
-	public function __unset($name) {
+	public function __unset($name)
+	{
 		if (isset($this->data[$name])) {
 			unset($this->data[$name]);
 		}
@@ -172,16 +174,21 @@ abstract class SQL {
 	// ===========================================================================
 
 	/**
-	 * return version number of these classes
+	 * Gets the version number of the classes.
+	 *
 	 * @return string
+	 *   The version number.
 	 */
-	public function version() {
+	public function version()
+	{
 		return $this->version;
 	}
 
 	/**
-	 * return version of the connection driver
+	 * Gets the version of the database client (driver).
+	 *
 	 * @return string
+	 *   The driver and its version number.
 	 */
 	abstract public function driver_version();
 
@@ -189,51 +196,66 @@ abstract class SQL {
 	// ===========================================================================
 
 	/**
-	 * alias for SQL::open()
+	 * Opens the connection to the database.
 	 *
-	 * @return bool true on success else Exception is thrown
+	 * @return bool
+	 *   true on success otherwise false.
 	 */
-	public function connect() {
+	public function connect()
+	{
 		return $this->open();
 	}
 
 	/**
-	 * alias for SQL::close()
+	 * Closes the connection to the database.
 	 *
-	 * @return bool true on success else false
+	 * @param bool $force (optional)
+	 *   A value indicating whether the close should be enforced.
+	 *
+	 * @return void
 	 */
-	public function disconnect() {
-		$this->close();
+	public function disconnect($force = false)
+	{
+		$this->close($force);
 	}
 
 	/**
-	 * function stub to establish a database connection
+	 * Opens the connection to the database.
 	 *
-	 * @return bool true on successful connection
-	 * @throws \RuntimeException if something went wrong establishing the connection
+	 * @return bool
+	 *   true on a successful connection otherwise false and the error message is set.
 	 */
 	abstract public function open();
 
 	/**
-	 * function to close previously established connection
-	 * @return bool true on successful close else false
+	 * Closes the connection to the database.
+	 *
+	 * @param bool $force (optional)
+	 *   A value indicating whether the close should be enforced.
+	 *
+	 * @return void
 	 */
-	public function close() {
-		if ($this->conn != null || $this->conn != false) {
-			$ret = $this->conn->close();
-			$this->conn = null;
-			$this->status = 'closed';
-			return $ret;
-		}
+	public function close($force = false)
+	{
+		if ($this->conn == null || $this->conn == false)
+			return;
 
-		return true;
+		$persistent = $this->conn->getAttribute(\PDO::ATTR_PERSISTENT);
+
+		if ($persistent && !$force)
+			return;
+
+		$this->conn = null;
+		$this->status = 'closed';
 	}
-	
+
 	/**
-	 * returns current connection status
+	 * Gets the state of the connection.
+	 *
 	 * @return string
 	 */
-	public function status() {
+	public function status()
+	{
 	 	return $this->status;
 	 }
 
@@ -241,128 +263,241 @@ abstract class SQL {
 	// ===========================================================================
 
 	/**
-	 * starting an SQL transaction
+	 * Starts a transaction.
+	 *
 	 * @return void
 	 */
-	public function begin_transaction() {
-		$this->query("BEGIN;");
+	public function begin_transaction()
+	{
+		$this->conn->beginTransaction();
 	}
 
 	/**
-	 * commiting all SQL changes
+	 * Commits all changes.
+	 *
 	 * @return void
 	 */
-	public function commit() {
-		$this->query("COMMIT;");
+	public function commit()
+	{
+		$this->conn->commit();
 	}
 
 	/**
-	 * roll unsuccessful SQL transaction back
+	 * Performs a rollback of all changes since transaction began.
+	 *
 	 * @return void
 	 */
-	public function rollback() {
-		$this->query("ROLLBACK;");
+	public function rollback()
+	{
+		$this->conn->rollBack();
 	}
 
 	// --- queries
 	// ===========================================================================
 
 	/**
-	 * execute a simple querry directly
-	 * @param  string  $query  Statement for request
-	 * @return ressource
+	 * Executes a given query statement.
+	 *
+	 * @param string $query
+	 *   The statement to execute.
+	 *
+	 * @return \PDOStatement|bool
+	 *   On error false is returned and the error message set, otherwise the PDOStatement
 	 */
-	public function query($query) {
-		return $this->conn->query($query);
+	public function query($query)
+	{
+		$this->error = '';
+
+		try
+		{
+			return $this->conn->query($query);
+		}
+		catch(\PDOException $ex)
+		{
+			$this->error = $ex->getMessage();
+			return false;
+		}
 	}
 
 	/**
-	 * returns message of last raised error
+	 * Gets the last raised error message.
+	 *
 	 * @return string
 	 */
-	abstract public function error();
+	public function error()
+	{
+		return $this->error;
+	}
 
 	/**
-	 * returns the properly concatenated elements as the DB supports it.
-	 * @return string
+	 * Prepares a query statement for execution.
+	 *
+	 * @param string $query
+	 *   The query statement.
+	 *
+	 * @return \PDOStatement
+	 *   The statement for handling.
 	 */
-	abstract public function concat($elements = array());
+	public function prepare($query)
+	{
+		$close = $this->status == 'close';
+
+		$this->open();
+		$stmt = $this->conn->prepare($query);
+
+		if ($close)
+			$this->close();
+
+		return $stmt;
+	}
 
 	/**
-	 * returns the properly escaped string for this DB type.
+	 * Gets the correct function with all elements concatenated.
+	 *
+	 * @param mixed[] $elements
+	 *   An array list of elements to concatenate.
+	 *
 	 * @return string
 	 */
-	abstract public function escape($string);
+	abstract public function concat($elements);
+
+	/**
+	 * Gets the escaped string for an Sql statement.
+	 *
+	 * The function may not be used while binding parameters via SQLCommand!
+	 *
+	 * @param string $string
+	 *   The string to escape.
+	 *
+	 * @return string
+	 */
+	public function escape($string)
+	{
+		$close = $this->status == 'close';
+
+		$this->open();
+		$escaped = $this->conn->quote($string);
+
+		if ($close)
+			$this->close();
+
+		return $escaped;
+	}
 
 	// --- data-results
 	// ===========================================================================
 
 	/**
-	 * returns all results as associative array
-	 * @param  \mysqli_result $result result of last executed query
+	 * Gets an result row as assoc. array.
+	 *
+	 * @param \PDOStatement $result
+	 *   The result of an queried statement.
+	 *
 	 * @return mixed[]
 	 */
-	abstract public function fetch_array($result);
-
-	/**
-	 * returns all results as object
-	 * @param  \mysqli_result $result result of last executed query
-	 * @return mixed
-	 */
-	abstract public function fetch_object($result);
-	
-	/**
-	 * returns all results as associative array as fetch_array.
-	 * @param  \mysqli_result $result result of last executed query
-	 * @return mixed[]
-	*/
-	public function fetch_assoc($result) {
-		return $this->fetch_array($result);
+	public function fetch_array($result)
+	{
+		return $this->fetch_assoc($result);
 	}
 
 	/**
-	 * returns number of rows in current result
-	 * @param  \mysqli_result $result result of last executed query
-	 * @return int
+	 * Gets an result row as object.
+	 *
+	 * @param \PDOStatement $result
+	 *   The result of an queried statement.
+	 *
+	 * @return object
 	 */
-	abstract public function num_rows($result);
+	public function fetch_object($result)
+	{
+		return $result->fetch(\PDO::FETCH_OBJ);
+	}
 
 	/**
-	 * returns unique id of last inserted row
-	 * @return int
+	 * Gets an result row as assoc. array.
+	 *
+	 * @param \PDOStatement $result
+	 *   The result of an queried statement.
+	 *
+	 * @return mixed[]
 	 */
-	abstract public function insert_id();
+	function fetch_assoc($result)
+	{
+		return $result->fetch(\PDO::FETCH_ASSOC);
+	}
 
 	/**
-	 * returns number of rows affected by last statement
+	 * Gets the number of rows returned by the executed statement.
+	 *
+	 * @param \PDOStatement $result
+	 *   The result of an queried statement.
+	 *
 	 * @return int
+	 *   The number of rows.
 	 */
-	abstract public function affected_rows();
+	public function num_rows($result)
+	{
+		return $result->rowCount();
+	}
+
+	/**
+	 * Gets the unique id of the last inserted row.
+	 *
+	 * @return int
+	 *   The id of the last inserted row.
+	 */
+	public function insert_id()
+	{
+		return $this->conn->lastInsertId();
+	}
+
+	/**
+	 * Gets the number of rows affected by the last statement.
+	 *
+	 * @param \PDOStatement $result
+	 *   The result of an queried statement.
+	 *
+	 * @return int
+	 *   The number of rows affected by the statement.
+	 */
+	public function affected_rows($result)
+	{
+		return $result->rowCount();
+	}
 
 	// --- db-dumps
 	// ===========================================================================
 
 	/**
-	 * create an complete SQL dump from (selected) tables
+	 * Creates a dump to reimport.
 	 *
-	 * @param mixed $part   string or string-array with structure, data or structure,data
-	 * @param mixed $tables string or string-array with tablenames for dump
+	 * @param string|string[] $part (optional)
+	 *   String or string array with structure, data or structure,data.
+	 * @param string|string[] $tables
+	 *   String or string array with tablenames to dump.
 	 *
-	 * @return string with complete dump
+	 * @return string
 	 */
-	abstract public function get_dump($part = self::SQL_DB_STRUCTUREANDDATA, $tables = '');
+	abstract public function get_dump($part = SQLOPT_DB_STRUCTUREANDDATA, $tables = '');
 
 	/**
-	 * restore an SQL dump
+	 * Restores a given dump.
 	 *
-	 * @param mixed $dump        dump as line-separated array, filepath or string
-	 * @param bool  $exitOnError flag if restore should proceed on error or abort
-	 * @param bool  $returnError flag if error should be returned
+	 * @param string|string[] $dump
+	 *   Dump as line separated array, filepath or string.
+	 * @param bool $exitOnError (optional)
+	 *   A value indicating whether the execution should be stopped on error.
+	 * @param bool $returnError ()
+	 *   A value indicating whether the error should be returned.
 	 *
-	 * @return mixed
+	 * @return bool|string
 	 */
-	public function restore_dump($dump, $exitOnError = false, $returnError = self::SQL_RETURN_NO_ERROR) {
-		$file = is_array($dump) ? $dump : (file_exists($dump) ? preg_split("/(\r\n|\n|\r)/", file_get_contents($dump)) : preg_split("/(\r\n|\n|\r)/", $dump));
+	public function restore_dump($dump, $exitOnError = false, $returnError = false)
+	{
+		$file = is_array($dump) ? $dump
+			: (file_exists($dump) ? preg_split("/(\r\n|\n|\r)/", file_get_contents($dump))
+				: preg_split("/(\r\n|\n|\r)/", $dump));
+
 		$close = false;
 
 		if ($this->status == 'closed') {
@@ -431,7 +566,7 @@ abstract class SQL {
 						$error .= 'Error in line '.$line.': '.$this->error().PHP_EOL;
 						$error .= 'Code: '.$dumpline.PHP_EOL;
 						$error .= 'Executed: '.$queries.' Queries'.PHP_EOL;
-						
+
 						if ($exitOnError)
 							break;
 					}
@@ -464,23 +599,31 @@ abstract class SQL {
 	// --- dump conversion
 	// ===========================================================================
 
-/**
-	 * try to convert a SQLite dump into an MySQL dump
+	/**
+	 * Gets a converted Sql dump for a MySQL database.
 	 *
-	 * @param mixed $dump filepath, string or string-array with dump
-	 * @return mixed
+	 * @param string|string[] $dump
+	 *   Filepath, string or string-array containing a dump.
+	 *
+	 * @return string
+	 *   The converted dump.
 	 */
-	public static function convertToMySQL($dump) {
+	public static function convertToMySQL($dump)
+	{
 		throw new \Exception('Not implemented yet');
 	}
 
 	/**
-	 * try to convert a MySQL dump into an SQLite dump
+	 * Gets a converted Sql dump for a SQLite database.to
 	 *
-	 * @param mixed $dump filepath, string or string-array with dump
-	 * @return mixed
+	 * @param string|string[] $dump
+	 *   Filepath, string or string-array containing a dump.
+	 *
+	 * @return string
+	 *   The converted dump.
 	 */
-	public static function convertToSQLite($dump) {
+	public static function convertToSQLite($dump)
+	{
 		throw new \Exception('Not implemented yet');
 	}
 
@@ -488,20 +631,27 @@ abstract class SQL {
 	// ===========================================================================
 
 	/**
-	 * function stub; returning SQL structure of table
+	 * Gets the structure of a table.
 	 *
-	 * @param string $table name of table to get structure for
+	 * @param string $table
+	 *   The name of the table.
+	 *
 	 * @return string
+	 *   The table's structure.
 	 */
 	abstract protected function get_structure($table);
 
 	/**
-	 * function returning SQL insertions for table content
+	 * Gets the data of a table. Each row as own insert statement.
 	 *
-	 * @param string $table name of table to get contents
+	 * @param string $table
+	 *   The name of the table.
+	 *
 	 * @return string
+	 *   All insert statements.
 	 */
-	protected function get_data($table) {
+	protected function get_data($table)
+	{
 		$file = array();
 		$file[] = '';
 		$file[] = '--';
@@ -511,14 +661,14 @@ abstract class SQL {
 		$res = $this->query("SELECT * FROM `".$table."`;");
 		while ($row = $this->fetch_array($res)) {
 			$line = 'INSERT INTO `'.$table.'` VALUES (';
-			
+
 			$keys = array();
 			$vals = array();
-			
+
 			foreach ($row as $key => $val) {
 				if (!is_numeric($key)) {
 					$keys[] = '`'.$key.'`';
-					
+
 					if (is_null($val)) {
 						$vals[] = 'NULL';
 					} else if (is_numeric($val)) {
@@ -543,24 +693,34 @@ abstract class SQL {
 	// ===========================================================================
 
 	/**
-	 * check if $haystack starts with $needle
+	 * Gets a value indicating whether the string starts with a sequence.
 	 *
-	 * @param string $haystack part to be checked
-	 * @param string $needle sequence to search at start
+	 * @param string $haystack
+	 *   The string where the sequence is searched in.
+	 * @param string $needle
+	 *   The sequence to search within the haystack.
+	 *
 	 * @return bool
+	 *   true if needle was found at the start otherwise false.
 	 */
-	protected static function starts_with($haystack, $needle) {
+	protected static function starts_with($haystack, $needle)
+	{
 		return $needle === "" || strrpos($haystack, $needle, -strlen($haystack)) !== false;
 	}
 
 	/**
-	 * check if $haystack ends with $needle
+	 * Gets a value indicating whether the string ends with a sequence.
 	 *
-	 * @param string $haystack part to be checked
-	 * @param string $needle sequence to search at end
+	 * @param string $haystack
+	 *   The string where the sequence is searched in.
+	 * @param string $needle
+	 *   The sequence to search within the haystack.
+	 *
 	 * @return bool
+	 *   true if needle was found at the end otherwise false.
 	 */
-	protected static function ends_with($haystack, $needle) {
+	protected static function ends_with($haystack, $needle)
+	{
 		return $needle === "" || (($temp = strlen($haystack) - strlen($needle)) >= 0 && strpos($haystack, $needle, $temp) !== false);
 	}
 }
